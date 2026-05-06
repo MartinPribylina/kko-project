@@ -1,4 +1,5 @@
 #include "args.hpp"
+#include "codec.hpp"
 #include <iostream>
 #include <fstream>
 
@@ -17,8 +18,7 @@ int main(int argc, char *argv[]) {
     }
 #endif
 
-
-	std::ifstream in(args.infile, std::ios::binary);
+    std::ifstream in(args.infile, std::ios::binary);
     if (!in) {
         std::cerr << "Nelze otevřít vstupní soubor: " << args.infile << "\n";
         return 1;
@@ -30,7 +30,9 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    out << in.rdbuf();
-
-    return 0;
+    if (args.decompress) {
+        return decompress(in, out);
+    } else {
+        return compress(in, out, args.width, args.use_model, args.adaptive_scan);
+    }
 }

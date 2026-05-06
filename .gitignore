@@ -1,1 +1,5 @@
 .github
+.planning
+project/obj
+project/tmp
+project/lz_codec
