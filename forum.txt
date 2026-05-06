@@ -1,0 +1,19 @@
+Maximální hodnota pro -w
+autor Hamadej Jakub Bc. - neděle, 3. května 2026, 21.50
+Počet odpovědí: 1
+Dobrý den,
+
+s jakou maximální hodnotou můžeme počítat pro parametr width, tedy šířku obrázku, v dodané kostře se používá datový typ int, který má podle standartu garantováno 16 bitů (2 bajty), ale většina systémů v dnešní době má většinou integery 32 nebo 64 bitové takže by bylo snadné načíst i větší hodnoty, které by ale nebylo možné uložit jako informaci do hlavičky dat v souboru pro dekompresy.
+
+S pozdravem,
+Jakub Hamadej
+
+Obrázek: Vašíček Zdeněk doc. Ing. Ph.D.
+V odpovědi na Hamadej Jakub Bc.
+Re: Maximální hodnota pro -w
+autor Vašíček Zdeněk doc. Ing. Ph.D. - pondělí, 4. května 2026, 11.22
+Dobrý den,
+
+cílem projektu není hledat hraniční situace. Uvažujte maximálně 8192, což by odpovídalo 64MB nekomprimovaných dat.
+
+Zdeněk Vašíček

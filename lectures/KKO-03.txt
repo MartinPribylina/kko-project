@@ -1,0 +1,1786 @@
+Kódování s proměnnou délkou slov
+Zdeněk VAŠÍČEK
+Fakulta informačních technologií, Vysoké učení technické v Brně
+Brno, Czech Republic
+vasicek@fit.vutbr.cz
+KKO - Kódování a komprese dat
+1
+Obsah
+▪ Kódování
+– Jednoznačně dekódovatelné kódování, prefixové kódy, optimální kódování
+▪ Stručný úvod do teorie informace
+– Entropie, redundance, Kraft–McMillanova nerovnost, optimální prefixové kódování
+– Vztah entropie a kódování
+▪ Kódování celých čísel
+– Univerzální kódování pro reprezentaci celých čísel.
+– Unární kódování; Eliasovo gama, delta a omega kódování; Start-Step-Stop kódování; Golomb-Riceovo
+kódování, VLQ
+– Vztah Golombova kódování a RLE
+3
+KKO - Kódování a komprese dat
+Kódování
+▪ Předpokládejme, že máme vstupní tok, který se skládá ze symbolů z abecedy
+Σ = 𝑠1, … , 𝑠𝑛 , kterou budeme nazývat zdrojová abeceda.
+▪ Mějme dánu abecedu Γ tvořenou |Γ| symboly, kterou budeme nazývat abeceda
+kódových slov.
+▪ DEFINICE: Kódování nebo kód je formálně definováno jako injektivní zobrazení
+𝑓: Σ → Γ
+∗
+, kde Γ
+∗
+je množina konečných řetězců symbolů z Γ, tj. každému symbolu z
+abecedy Σ je přiřazeno nanejvýš jedno tzv. kódové slovo nad abecedou Γ.
+– Trojice (𝛴, Γ, 𝑓), kde platí podmínka jednoznačnosti ∀𝑎1,𝑎2∈ Σ: 𝑎1 ≠ 𝑎2 ⇒ 𝑓 𝑎1 ≠ 𝑓 𝑎2 .
+▪ Poznámky:
+– Pokud Γ = 0,1 , pak hovoříme o binárním kódování.
+– Abeceda Σ může být libovolná, potenciálně nekonečná, množina (viz např. množina přirozených čísel)
+KKO - Kódování a komprese dat
+4
+Rozšířené kódování
+▪ Zprávou rozumíme každý konečný řetězec zdrojových slov 𝑠 = 𝑠𝑖1 ⋯ 𝑠𝑖𝑘
+, kde sj ∈ Σ.
+▪ DEFINICE: Pokud 𝑓 je kódování, pak rozšíření kódování znaků na kódování zpráv (tj. 𝑓 na
+Σ
+∗
+) je definováno obvyklým způsobem pomocí zřetězení, tj.
+𝑓
++ 𝑠 = 𝑓 𝑠𝑖1
+𝑠𝑖2 … 𝑠𝑖𝑘
+= 𝑓 𝑠𝑖1 ⋯ 𝑓(𝑠𝑖𝑘
+).
+▪ Pro další výklad budeme uvažovat vždy 𝑓
++ 𝑠 , je-li vstupem 𝑓 řetězec tvořený znaky Σ
+▪ Příklad:
+– Uvažujme 𝛴 = A,B,C , Γ = 0,1 a zobrazení 𝑓: Σ → Γ
+∗ definované následovně:
+A→01, B→1, C→∅
+– 𝑓 BABA = 101101
+KKO - Kódování a komprese dat
+5
+Kódování – příklad
+▪ Dopředný proces převodu zprávy nad zdrojovou abecedou Σ na zprávu nad kódovou
+abecedou Γ se nazývá kódování, opačný proces pak dekódování.
+▪ Morseův kód je případem kódu s proměnnou délkou slov
+– Zkonstruujme binární kód, tj. Γ = 0,1 .
+Vstupní abeceda je tvořena alfanumerickými znaky
+𝛴 = A,B,C,D,E,…
+– Zobrazení 𝑓: Σ → Γ
+∗
+je definováno následovně:
+A→01, B→1000, C→1010, D→100, …
+– Pokud však aplikujeme kódování na řetězce,
+narazíme na problém s nejednoznačností:
+CAT→1010011, KIM→1010011, TETEETT→1010011, …
+KKO - Kódování a komprese dat
+6
+
+Jednoznačně dekódovatelné kódování
+▪ DEFINICE: Kódování 𝑓 je jednoznačně dekódovatelné, jestliže každý konečný řetězec z Γ
+∗
+je obraz nejvýše jedné zprávy, tj. ∀𝑠1,𝑠2∈ Σ
+∗ : 𝑓 𝑠1 = 𝑓 𝑠2 ⇒ 𝑠1 = 𝑠2.
+– Teoreticky mohou existovat i slova, která nemají v daném kódu vzory.
+▪ Není jednoduché rozhodnout, zda je daný kód jednoznačný
+– je nutné typicky nalézt protipříklad (viz Sardinas-Patterson algorithm).
+▪ Podmínka jednoznačné dekódovatelnosti nezaručuje, že proces dekódování je
+jednoduchý.
+– např. můžeme mít kódování, které je jednoznačné pouze při čtení řetězce pozpátku nebo pokud
+budeme počítat počet výskytů určitých symbolů
+▪ Mezi základní jednoznačně dekódovatelné kódování patří:
+– kódování s pevnou délkou kódových slov, kdy všechna kódová slova mají stejný počet symbolů, (např.
+běžné n-bitové binární kódování) a
+– mnohem obecnější třída prefixových kódů.
+KKO - Kódování a komprese dat
+7
+Prefixové kódování (prefix-free, instantaneous) a dekódovatelné kódy
+▪ DEFINICE: Kódování 𝑓 se nazývá bezprostředně dekódovatelné nebo prefixové, jestliže
+∀𝑠1,𝑠2∈ Σ
+∗: 𝑠1 ≠ 𝑠2 ⇒ ∄𝑧∈Γ
+∗ : 𝑓 𝑠1 𝑧 = 𝑓 𝑠2 , tj. neexistují různé 𝑠𝑖 a 𝑠𝑗
+takové,
+že 𝑓(𝑠𝑖) je prefix 𝑓 𝑠𝑗
+.
+– Prefixové kódování mají velký význam neboť se jedná o jediné kódy, které lze dekódovat symbol po
+symbolu ihned po přečtení poslední značky kódového slova symbolu.
+▪ Každé prefixové kódování je jednoznačně dekódovatelné .
+– Příklad: mějme Γ = 0,1 a čtyři symboly 𝑤1, 𝑤2, 𝑤3, 𝑤4. Kódování 𝑓(𝑤1) = 0, 𝑓 𝑤2 = 10, 𝑓 𝑤3 =
+110, 𝑓 𝑤4 = 1110 je prefixové a zprávu 01101001010010 lze dekódovat jako sekvenci
+𝑤1 𝑤3 𝑤2 𝑤1 𝑤2 𝑤2 𝑤1 𝑤2 bez nutnosti číst bit následujícího slova. Nula signalizuje konec symbolu.
+▪ Ne každé jednoznačně dekódovatelné kódování je prefixové.
+– Příklad: mějme Γ = 0,1 a tři symboly 𝑤1, 𝑤2, 𝑤3. Mějme kódování 𝑓(𝑤1) = 00, 𝑓 𝑤2 =
+10, 𝑓 𝑤3 = 100. Přestože uvedený kód není prefixový, je jednoznačně dekódovatelný.
+KKO - Kódování a komprese dat
+9
+
+Průměrná délka kódování
+▪ Pro kódová slova, tj. řetězce 𝑓(𝑠𝑖), můžeme stanovit přirozená čísla l
+𝑖 = |𝑓(𝑠𝑖)|, která
+odpovídají délce kódů v kódování 𝑓 a definovat tzv. průměrnou délku kódování.
+▪ DEFINICE: Nechť 𝑃(𝑠𝑖) odpovídá pravděpodobnosti výskytu symbolu 𝑠𝑖 ∈ Σ ve vstupním
+toku a 𝐷 = Σ , pak průměrná délka kódování 𝑓 je definovaná jako
+▪ Příklad:
+– Mějme dán zdroj informace, který vysílá symboly Σ = {𝑎, 𝑏, 𝑐, 𝑑} s pravděpodobností
+𝑝 = 0.9, 0.05, 0.025, 0.025 . Které kódování je výhodnější použít, máme-li dány dvě kódování:
+𝑓: 𝑎 → 0, 𝑏 → 111, 𝑐 → 110, 𝑑 → 101 a g: 𝑎 → 00, 𝑏 → 01, 𝑐 → 10, 𝑑 → 11 ?
+KKO - Kódování a komprese dat
+10
+𝑓 = ෍
+𝑖=1
+𝐷
+𝑃 𝑠𝑖
+|𝑓 𝑠𝑖
+| = ෍
+𝑖=1
+𝐷
+𝑃 𝑠𝑖
+𝑙𝑖
+Optimální kódování
+▪ Uvažujme abecedu Γ a funkci 𝑐𝑜𝑠𝑡: Γ → ℝ přiřazující každému symbolu abecedy cenu,
+kterou lze interpretovat např. jako dobu potřebnou k odeslání symbolu určitým
+komunikačním kanálem.
+– V případě Morseova kódu máme dva případy ceny (1 – tečka, 2 – čárka), neboť odeslat čárku trvá
+dvakrát delší dobu.
+▪ Cena slova nad abecedou Γ je dána součtem cen jednotlivých symbolů, tj.
+𝑐𝑜𝑠𝑡 𝑎1 … 𝑎𝑛 = 𝑐𝑜𝑠𝑡 𝑎1 + 𝑐𝑜𝑠𝑡 𝑎2 + ⋯ + 𝑐𝑜𝑠𝑡 𝑎𝑛 .
+▪ DEFINICE: Průměrná cena kódování 𝑓: Σ → Γ
+∗
+s pravděpodobnostmi výskytu
+𝑃(𝑠𝑖) jednotlivých symbolů 𝑠𝑖 vstupní abecedy Σ je rovna
+W 𝑓 = ෍
+𝑖=1
+𝐷
+𝑃 𝑠𝑖 𝑐𝑜𝑠𝑡(𝑓 𝑠𝑖 )
+– V případě uniformní ceny symbolu 𝐶 platí W 𝑓 = 𝐶 𝑓
+▪ DEFINICE: Máme-li dány pravděpodobnosti 𝑃(𝑠𝑖) a funkci 𝑐𝑜𝑠𝑡, pak 𝑓 je optimální
+kódování právě tehdy, když W 𝑓 je minimální.
+KKO - Kódování a komprese dat
+11
+Další vlastnosti kódování
+▪ DEFINICE: Kódování je afixové, pokud žádné kódové slovo není příponou (suffixem)
+jiného slova. Afixový kód je jednoznačně dekódovatelný symbol po symbolu při čtení
+zprava doleva.
+– Příklad: mějme Γ = 0,1 , dvě kódová slova 𝑤1, 𝑤2 a kódování 𝑓(𝑤1) = 0, 𝑓 𝑤2 = 01.
+Toto kódování není prefixové, ale lze snadno ověřit, že je jednoznačně dekódovatelné, pokud budeme
+postupovat zpět z konce zprávy.
+▪ DEFINICE: Kódování je blokové, pokud všechna kódová slova mají stejnou délku. Blokový
+kód je jednoznačně dekódovatelný při čtení libovolným směrem.
+▪ DEFINICE: Nechť S, C jsou dvě uspořádané abecedy. Říkáme, že kódování 𝑓 je
+uspořádané pokud platí, že ∀𝑎1,𝑎2∈Σ: 𝑎1 < 𝑎2 ⇒ 𝑓 𝑎1 < 𝑓 𝑎2 .
+– Příklad uspořádaného prefixového kódu 𝛾 pro kódování pěti nejčastějších
+anglických slov. Vstupní abecedu tvoří slova W={A,AND,OF,THE,TO}, kterým
+jsou přiřazena kódová slova z abecedy {0,1}. Protože žádné kódové slovo není
+prefixem jiného, jedná se o prefixový kód.
+KKO - Kódování a komprese dat
+12
+Stromová reprezentace kódování
+▪ Kód je možné reprezentovat pomocí n-árního stromu s ohodnocenými hranami, kde
+– n = Γ a listy (nebo uzly v případě kódu, který není prefixový) odpovídají symbolům zdrojové abecedy.
+– Každé hraně je přiřazen symbol kódové abecedy. Spojením symbolů po cestě od kořene směrem k listu
+(nebo uzlu) získáme kódovou značku přiřazenou symbolu příslušejícímu listu (nebo uzlu).
+▪ Podmínka, že se jedná o prefixové kódování implikuje, že
+– žádné kódové slovo není předchůdcem jiného kódového slova a tudíž kódové slovo musí odpovídat
+listům. Počet listů je roven |Σ|.
+▪ Hloubka stromu odpovídá délce nejdelšího kódového slova.
+KKO - Kódování a komprese dat
+13
+A AND
+OF THE TO
+0
+0
+0
+1
+1
+1
+1
+0
+Strom pro příklad z přechozího slidu Strom pro Eliasův gama kód
+1
+2 3
+4 5 6 7
+0 1
+0 1
+0 1
+Stromová reprezentace kódování
+▪ Prefixová varianta Morseova kódu:
+– Pokud zavedeme symbol pauza, kód se stane prefixovým a jednoznačně dekódovatelným.
+– Jinou možností je využít nuly jako oddělovače (0 – pauza, 00 – konec symbolu) a jedničku pro vyjádření
+čárky nebo tečky (1 – tečka, 11 – čárka)
+Příklad: A→101100, B→1101010100, C→11010110100, …
+Rětězec CAB se tedy zakóduje jako CAB → 110101101001011001101010100
+KKO - Kódování a komprese dat
+14
+E
+S
+P L
+L
+S
+I
+P
+A
+P T
+P
+Stručný úvod do teorie informace
+▪ V předchozí ukázce jsme získali jednoznačně dekódovatelný prefixový kód, který
+přiřazuje často se vyskytujícím symbolům kratší značky než méně často se vyskytujícím
+symbolům. Je však tento kód optimální?
+▪ Odpověď na výše uvedenou otázku nám může podat teorie informace, která dovoluje
+kvantifikovat informaci a redundanci.
+– Intuitivně cítíme, že informace je neuchopitelná matematická veličina, která se nedá přesně definovat,
+zachytit a měřit.
+– Teorie informace kvantifikuje informaci a ukazuje, jak měřit informaci, takže může odpovědět na otázku
+„kolik informace je obsaženo v určité části dat?“ přesným číslem.
+▪ Kvantifikování informace je založeno na postřehu, že obsah informace ve sdělení je
+ekvivalentní míře překvapení tímto sdělením.
+– Pokud dostanete zprávu “další slide se týká teorie informace”, tak žádnou novou informaci nedostanete.
+– Pokud však obdržíte zprávu “toto je k teorii informace vše”, jedná se o překvapivou zprávu bez ohledu
+na počet slov zprávy, nebo jak se cítíte po této informaci.
+KKO - Kódování a komprese dat
+15
+Informační obsah (self-information)
+▪ Teorií informace se zabýval ve své práci Shannon, který definoval informační obsah
+určité události (míru překvapení) následovně:
+– Nechť P(A) je pravděpodobnost, že nastane událost A, potom míra překvapení je definována jako
+𝑖(𝐴) = log𝑏
+1
+𝑃(𝐴)
+= −log𝑏 𝑃(𝐴)
+▪ Volba logaritmu odpovídá intuitivnímu chápání množství informace:
+1. Pokud pravděpodobnost jisté události je malá, pak míra překvapení, pokud událost
+nastane, je velká.
+– Pokud 𝑃(𝐴) = 1, pak log 𝑃(𝐴) = 0 a hodnota −log(𝑥) roste se snižující se hodnotou x od 1
+směrem k 0.
+2. Pokud máme dva nezávislé jevy A a B, množství informace se sčítá
+– 𝑖 𝐴𝐵 = log𝑏
+1
+𝑃 𝐴𝐵
+= log𝑏
+1
+𝑃 𝐴 𝑃 𝐵
+= log𝑏
+1
+𝑃(𝐴)
++ log𝑏
+1
+𝑃(𝐵)
+= 𝑖 𝐴 + 𝑖(𝐵)
+▪ Jednotka závisí na použitém základu logaritmu b
+– pokud b=2, jednotkou je bit; je-li b=e, pak se jedná o nat (natural unit of information)
+KKO - Kódování a komprese dat
+16
+Informační obsah – příklad
+▪ S ohledem na předchozí definici lze informační obsah chápat také jako
+a) počet bitů nutný pro vyjádření určité informace nebo
+b) minimální počet otázek ANO/NE, nutných pro získání určité informace.
+▪ Příklad a) – házení mincí
+– Dvě možnosti výsledku: padne hlava (H), nebo panna (T), což můžeme vyjádřit jako ano, nebo ne nebo
+0, nebo 1, tzn. jedním bitem. Výsledek kteréhokoliv hodu je předem neurčitý a musíme minci hodit,
+abychom tuto neurčitost vyřešili. Jediným bitem se vyřeší nejistota při házení mince.
+– Ideální mince: Máme dvě události a sice padne hlava 𝑃(𝐻) = 0.5 a padne panna 𝑃(𝑇) = 0.5.
+Z pohledu množství informace jsou obě události ekvivalentní, neboť
+𝑖(𝐻) = −log2𝑃(𝐻) = 1 bit, 𝑖(𝑇) = −log2𝑃(𝑇) = 1 bit.
+– Cinknutá mince: Předpokládejme např. 𝑃(𝐻) = 1/8 a 𝑃(𝑇) = 7/8, pak 𝑖(𝐻) = 3 bity a 𝑖(𝑇) = 0.193
+bitů. Výskyt hlavy je méně pravděpodobný a nese z matematického hlediska větší množství informace.
+KKO - Kódování a komprese dat
+17
+Informační obsah – příklad
+▪ S ohledem na předchozí definici lze informační obsah chápat také jako
+a) počet bitů nutný pro vyjádření určité informace nebo
+b) minimální počet otázek ANO/NE, nutných pro získání určité informace.
+▪ Příklad b) – balíček 64 hracích karet
+– Mějme balíček 64 hracích karet a uvažme případ, kdy A vytáhne jednu kartu a B má uhodnout, která to
+je. Odhad je číslo mezi 1 a 64. Jaký je minimální počet otázek, nutných pro uhodnutí karty?
+– Dle definice: Nechť X je náhodná veličina nabývajících jednu z 64 hodnot, pak 𝑃(𝑋 = 𝑥) = 1/64 a tedy
+𝑖 𝑋 = 𝑥 = log2 1/64 = 6 bitů.
+– Intuitivně (implementace): Nejefektivněji se dobereme výsledku aplikací metody binárního vyhledávání.
+K získání výsledku je zapotřebí log264 = 6 otázek.
+KKO - Kódování a komprese dat
+18
+Informační obsah zdroje informace
+▪ Výsledky předchozích příkladů lze zobecnit na množinu nezávislých událostí 𝐴𝑖
+(typicky zdroj
+informace 𝒮 produkující symboly 𝐴𝑖
+s pravděpodobnostmi 𝑃(𝐴𝑖)), kde výsledek jistého
+náhodného experimentu můžeme vyjádřit pomocí průměrného informačního obsahu jako
+𝐻 = ෍
+𝑖
+𝑃 𝐴𝑖
+𝑖 𝐴𝑖 = −෍
+𝑖
+𝑃 𝐴𝑖
+log𝑏 𝑃(𝐴𝑖)
+▪ Veličina H se nazývá entropie náhodné veličiny (entropie zdroje informace), kterou zavedl
+Shannon jako míru neurčitosti, kterou má průměrně jeden symbol zprávy (míru informace,
+kterou získáme přečtením jednoho symbolu).
+– Pro hod mincí: 𝐻 = 𝑃 𝐻 log2 𝑃 𝐻 + 𝑃 𝑇 log2 𝑃 𝑇 = 0.5 log2 0.5 + 0.5 log2 0.5 = 1 bit
+– Struktura H není zvolena náhodně, jedná se o funkci splňující axiomy míry neurčitosti, H je pozitivní, spojitá,
+symetrická a koherentní a až na multiplikativní konstantu existuje pouze jediná.
+▪ Věta o minimální entropii:
+– Nejmenší entropie je 𝐻(𝒮) = 0 a té nabývá zdroj zpráv obsahující jediný symbol s 𝑃(𝐴1
+) = 1 a 𝑃(𝐴𝑖
+) = 0
+pro 𝑖 > 1
+▪ Věta o maximální entropii:
+– Největší entropie 𝐻(𝒮) = log2𝑛 nabývá zdroj právě když má rovnoměrné rozdělení pravděpodobností 1/𝑛.
+KKO - Kódování a komprese dat
+19
+Informační obsah zdroje informace – příklad
+▪ Uvažujme náhodnou veličinu 𝒜 s oborem hodnot M={a1,a2,a3,…,a8}, která vykazuje
+vlastnosti rovnoměrného pravděpodobnostního rozložení.
+– Platí 𝑃(𝑎𝑖) = 1/8 a tedy
+𝐻 𝒜 = −෍
+𝑖=1
+8
+𝑃 𝑎𝑖
+log2 𝑃 𝑎𝑖 = ෍
+𝑖=1
+8
+1
+8
+log2 8 = 3
+– Takový výsledek je v souladu s naším očekáváním, neboť 3 bity dávají dohromady 8 možných kombinací.
+▪ Nyní uvažujme náhodnou veličinu 𝒜 se stejným oborem hodnot ale pravděpodobností
+jednotlivých prvků (𝑃(𝑎1), 𝑃(𝑎2), … , 𝑃(𝑎8)) = (1/2, 1/4, 1/8, 1/16, 1/64, 1/64, 1/64, 1/64)
+– Entropie náhodné veličiny 𝒜 je nyní rovna
+𝐻 𝒜 = −෍
+𝑖=1
+8
+𝑃 𝑎𝑖
+log2 𝑃 𝑎𝑖 =
+1
+2
+log2 2 +
+1
+4
+log2 4 +
+1
+8
+log2 8 +
+1
+16 log2 16 +
+4
+64 log2 64 = 2
+– Tento výsledek už tak zcela intuitivní není. Říká nám, že jsme schopni 8 rozdílných prvků popsat pouze
+dvěma bity. Jak toho ovšem můžeme dosáhnout?
+– Přiřazením (a1, a2, ..., a8) = (0,10,110,1110,111100,111101,111110,111111)
+KKO - Kódování a komprese dat
+20
+Informační obsah obecného zdroje informace
+▪ Předchozí definice platí pouze pro zdroj informace, který produkuje symboly, které jsou
+nezávislé a vykazují charakter stejného pravděpodobnostního rozložení (angl.
+independent and identically distributed, i.i.d.).
+▪ Pro obecný zdroj informace 𝒮 s abecedou 𝒜 = {1,2, … , 𝑚} generující zprávu tvořenou
+posloupností symbolů 𝑋1, 𝑋2, … , 𝑋𝑛 z množiny 𝒜, kde 𝑋𝑖
+𝑗 = 𝑗 je náhodná proměnná,
+je entropie zdroje 𝐻 𝒮 dána vztahem
+𝐻 𝒮 = lim
+𝑛→∞
+1
+𝑛
+𝐺𝑛
+▪ kde 𝐺𝑛 odpovídá entropii posloupnosti 𝑋1, 𝑋2, … , 𝑋𝑛
+KKO - Kódování a komprese dat
+21
+𝐺𝑛 = − ෍
+𝑖1,𝑖2,…,𝑖𝑛
+𝑃 𝑋1 = 𝑖1, 𝑋2 = 𝑖2, … , 𝑋𝑛 = 𝑖𝑛 log2𝑃 𝑋1 = 𝑖1, 𝑋2 = 𝑖2, … , 𝑋𝑛 = 𝑖𝑛
+𝐺𝑛 = − ෍
+𝑖1=1
+𝑚
+෍
+𝑖2=1
+𝑚
+… ෍
+𝑖𝑛=1
+𝑚
+𝑃 𝑋1 = 𝑖1, 𝑋2 = 𝑖2, … , 𝑋𝑛 = 𝑖𝑛 log2𝑃 𝑋1 = 𝑖1, 𝑋2 = 𝑖2, … , 𝑋𝑛 = 𝑖𝑛
+Informační obsah zdroje informace – entropie prvního řádu
+▪ Pokud je výskyt každého symbolu nezávislý a stejně pravděpodobnostně rozložený
+(i.i.d.), pak 𝑋𝑖 = 𝑋1 = 𝑋 a tedy
+𝐻 𝒮 = −
+1
+𝑛
+𝑛 ෍
+𝑖1=1
+𝑚
+𝑃 𝑋1 = 𝑖1 log2𝑃 𝑋1 = 𝑖1 = 𝐻 𝑋 = −෍
+𝑖=1
+𝑚
+𝑃 𝑖 log2𝑃 𝑖
+▪ Vztah odpovídá definici Shannonovy entropie a je běžně označován jako entropie
+prvního řádu (angl. first-order entropy).
+KKO - Kódování a komprese dat
+22
+Odvození
+KKO - Kódování a komprese dat
+23
+𝑃 𝑋1 = 𝑖1, 𝑋2 = 𝑖2, … , 𝑋𝑛 = 𝑖𝑛 = 𝑃 𝑋1 = 𝑖1 𝑃 𝑋2 = 𝑖2 ⋯ 𝑃 𝑋𝑛 = 𝑖𝑛 = ෑ
+𝑖=1
+𝑛
+𝑃(𝑋𝑖 = 𝑖𝑖)
+𝐺𝑛 = − ෍
+𝑖1,𝑖2,…,𝑖𝑛
+𝑃 𝑋1 = 𝑖1, 𝑋2 = 𝑖2, … , 𝑋𝑛 = 𝑖𝑛 log2𝑃 𝑋1 = 𝑖1, 𝑋2 = 𝑖2, … , 𝑋𝑛 = 𝑖𝑛
+𝐺𝑛 = ෍
+𝑖=1
+𝑛
+−෍
+𝑖𝑖
+𝑃(𝑋𝑖 = 𝑖𝑖) log2 𝑃 𝑋𝑖 = 𝑖𝑖 = ෍
+𝑖=1
+𝑛
+𝐻 𝑋 = 𝑛𝐻(𝑋)
+𝐻 𝒮 = lim
+𝑛→∞
+1
+𝑛
+𝐺𝑛 = 𝐻(𝑋)
+Informační obsah zdroje informace – podmíněná entropie
+▪ Pravděpodobnosti jednotlivých událostí jsou typicky závislé na kontextu 𝐶, ve kterém se
+vyskytly.
+▪ Věta o podmíněné entropii: pokud je distribuce symbolů 𝒮 nezávislá na kontextu 𝐶, pak
+platí, že 𝐻 𝒮|𝐶 = 𝐻 𝒮 . V opačném případě platí že 𝐻 𝒮|𝐶 < 𝐻 𝒮
+– Znalost kontextu dovoluje zpřesnit pravděpodobnosti a snížit entropii.
+▪ Pokud je výskyt 𝑋1 závislý na výskytu 𝑋2, pak hovoříme o podmíněné entropii náhodné
+proměnné 𝑋1v závislosti na 𝑋2, kterou lze vyjádřit jako
+– Podmíněná entropie odpovídá entropii zdroje pokud uvažujeme Markovův řetězec 1. řádu, kde 𝑋1 = 𝑋𝑛
+a 𝑋2 = 𝑋𝑛−1, tj. pravděpodobnost výskytu 𝑛-tého symbolu závisí na předchozím symbolu.
+KKO - Kódování a komprese dat
+24
+𝐻 𝑋1 𝑋2 = ෍
+𝑖2=1
+𝑚
+𝑃 𝑖2 𝐻 𝑋1 𝑋2 = 𝑖2 = − ෍
+𝑖2=1
+𝑚
+𝑃 𝑖2 ෍
+𝑖1=1
+𝑚
+𝑃(𝑖1|𝑖2) log2 𝑃(𝑖1|𝑖2)
+Vsuvka - Markovovy modely
+▪ Závislost v datech lze popsat pomocí Markovských modelů.
+– Pro účely komprese nás zajímá zejména diskrétní Markovský řetězec.
+▪ Posloupnost náhodných veličin {𝑋𝑛|𝑛 ∈ ℕ, 𝑋𝑛 ∈ Σ} tvoří diskrétní Markovský řetězec
+𝑘-tého řádu, jestliže platí
+𝑃(𝑋𝑛 𝑋𝑛−1, … , 𝑋𝑛−𝑘 = 𝑃(𝑋𝑛 𝑋𝑛−1, … , 𝑋𝑛−𝑘, …
+– Znalost předchozích 𝑘 symbolů je ekvivalentní znalosti celé historie.
+– Hodnoty {𝑋𝑛−1, … , 𝑋𝑛−𝑘} odpovídají stavu procesu.
+– Počet stavů modelu je roven Σ
+𝑘
+▪ Nejčastěji se používá model prvního řádu, kde platí
+𝑃(𝑋𝑛 𝑋𝑛−1 = 𝑃(𝑋𝑛 𝑋𝑛−1,𝑋𝑛−2, 𝑋𝑛−3, …
+– Příklad: reprezentace pro Σ = {b, w},
+– pokud P(Sw) a P(Sb) je pravděpodobnost, že se nacházíme ve stavu Sw a Sb, pak H=P(Sw)H(Sw) +
+P(Sb)H(Sb), kde H(Sw)= −P(b|w) log P(b|w)−P(w|w) log P(w|w) a P(w|w) = 1−P(b|w)
+KKO - Kódování a komprese dat
+25
+Vsuvka - Markovovy modely
+Příklad: 𝑥1𝑥2 . . . 𝑥10 = 𝑎𝑎𝑏𝑎𝑏𝑏𝑎𝑏𝑎𝑎
+▪ Předpokládejme nezávislý výskyt a a b a stejné rozdělení pravděpodobností:
+– 𝑃(𝑎) = 6/10, 𝑃(𝑏) = 4/10
+– 𝐻 = −𝑃(𝑎)log2𝑃(𝑎) − 𝑃(𝑏)log2𝑃(𝑏) = 0.971 bitů/symbol
+▪ Předpokládejme Markovův model 1. řádu:
+– 𝑃(𝑎) = 5/9, 𝑃(𝑏) = 4/9, 𝑃(𝑎|𝑎) = 2/5, 𝑃(𝑏|𝑎) = 3/5, 𝑃(𝑎|𝑏) = 3/4 𝑃(𝑏|𝑏) = 1/4, pak
+– 𝐻 = 𝑃 𝑎 𝐻 𝑋 𝑎 + 𝑃 𝑏 𝐻 𝑋 𝑏 = 𝑃 𝑎 −𝑃 𝑎 𝑎 log2𝑃 𝑎 𝑎 − 𝑃 𝑏 𝑎 log2𝑃 𝑏 𝑎 +
+𝑃(𝑏)(−𝑃(𝑎|𝑏) log2𝑃(𝑎|𝑏) − 𝑃(𝑏|𝑏) log2𝑃(𝑏|𝑏)) = 0.9 bitů/symbol
+▪ Předpokládejme Markovův model 2. řádu:
+– 𝑃 𝑎𝑎 =
+1
+8
+, 𝑃 𝑎𝑏 =
+3
+8
+, 𝑃 𝑏𝑎 =
+3
+8
+, 𝑃 𝑏𝑏 =
+1
+8
+, 𝑃 𝑎 𝑎𝑎 = 0, 𝑃 𝑏 𝑏𝑏 = 0,
+𝑃 𝑏 𝑎𝑎 = 1, 𝑃 𝑎 𝑎𝑏 =
+2
+3
+, 𝑃 𝑏 𝑎𝑏 =
+1
+3
+, 𝑃 𝑎 𝑏𝑎 =
+1
+3
+, 𝑃 𝑏 𝑏𝑎 =
+2
+3
+, 𝑃 𝑎 𝑏𝑏 = 1
+– 𝐻 = σ𝑥1𝑥2=𝑎𝑎
+𝑏𝑏 𝑃 𝑥1𝑥2 𝐻 𝑋 𝑥1𝑥2 = σ𝑥1𝑥2=𝑎𝑎
+𝑏𝑏 𝑃 𝑥1𝑥2 (− σ𝑥3=𝑎,𝑏 𝑃 𝑥3 𝑥1𝑥2 log2 𝑃(𝑥3|𝑥1𝑥2))
+= 0.689 bitů/symbol
+KKO - Kódování a komprese dat
+26
+Vztah entropie a kódování
+▪ Nechť Σ, Γ jsou dvě konečné abecedy symbolů, Γ = 𝐷, a Σ
+∗
+a Γ
+∗ množina všech
+řetězců. Předpokládejme, že 𝑋 je náhodná veličina i.i.d. nabývající hodnot z Σ a dále, že
+𝑓 je jednoznačně dekódovatelné kódování Σ
+∗ → Γ
+∗
+. Nechť 𝒮 je náhodná veličina
+odpovídající délce kódových slov 𝑓 𝑋 .
+▪ Shannonova věta o kódování bez šumu (Shannon, 1948): Pokud 𝑓 je optimální kódování
+z hlediska průměrné délky kódu, tj. má minimální průměrnou délku kódování pro 𝑋,
+kterou označíme 𝐿min = 𝑓 = 𝔼[𝒮], pak
+𝐻(𝑋)
+log2 𝐷
+≤ 𝐿𝑚𝑖𝑛 <
+𝐻 𝑋
+log2 𝐷
++ 1
+– Hodnota log2𝐷 odpovídá maximální entropii v abecedě o D prvcích
+▪ Důsledek: Optimální binární prefixové kódování 𝑓 má průměrnou délku větší nebo
+rovnu entropii zdroje 𝒮, tj. 𝐿𝑚𝑖𝑛 ≥ 𝐻(𝒮), a přinejhorším 𝐻 𝒮 + 1
+– Entropie nultého řádu odpovídá teoretickému minimu délky kódování, pokud uvažujeme znalost
+pravděpodobnosti výskytu jednotlivých symbolů a předpokládáme jejich nezávislost a stejné rozdělení.
+KKO - Kódování a komprese dat
+27
+Redundance kódování
+▪ S pomocí předchozí věty lze definovat redundanci kódování následovně.
+▪ DEFINICE: Redundance kódování 𝑅 odpovídá rozdílu mezi průměrnou délkou kódování
+𝑓 a entropií zdroje 𝐻(𝒮), tedy
+𝑅 = 𝑓 −
+𝐻 𝒮
+log2 𝐷
+▪ Problém nalezení optimálního kódování lze formulovat následovně: Máme-li dánu
+zdrojovou abecedu Σ a abecedu kódových symbolů Γ, cílem je nalézt jednoznačně
+dekódovatelné kódování 𝑓: Σ
+∗ → Γ
+∗
+takové, pro které se 𝑅 blíží nule (tzn. jehož
+průměrná délka je nejmenší možná).
+– Lze zobecnit, pokud budeme uvažovat, že kódování jednotlivých symbolů má různou cenu (náročnost).
+KKO - Kódování a komprese dat
+28
+Vztah entropie a kódování – příklad
+▪ Určení entropie zdroje je obecně problematické, neboť předem nevíme, jakým
+způsobem bude zdroj symboly generovat.
+– Pro přesné určení hodnoty bychom ideálně potřebovali nekonečně mnoho dlouhých vzorků a dále
+informaci o struktuře dat.
+– Entropii můžeme jenom odhadovat na základě znalosti určitého vzorku dat a našem předpokladu o
+struktuře problému.
+▪ Příklad: mějme zdroj, který vygeneroval sekvenci 1 2 3 2 3 4 5 4 5 6 7 8 9 8 9 10
+– Platí, že P(1) = P(6) = P(7) = P(10) = 1/16, P(2) = P(3) = P(4) = P(5) = P(8) = P(9) = 2/16
+– Pokud budeme předpokládat, že sekvence je i.i.d., entropie odpovídá entropii prvního řádu
+H = σ𝑖=1
+10 𝑃 𝑖 log2 𝑃(𝑖) = 3.25 bitů
+– A tedy nejlepší kódování, které můžeme použít, bude mít průměrnou délku slov alespoň 3.25 bitů.
+▪ Znalost struktury dat může pomoci redukovat entropii
+– Pokud však použijeme model založený na diferenci sousedních vzorků, dostáváme sekvenci 1 1 1 −1 1 1
+1 −1 1 1 1 1 1 −1 1 1. Tato sekvence je tvořena pouze dvěma symboly P(1)=13/16 a P(-1)=3/16 a
+entropie bude 𝐻 = 0.7 bitů.
+– V praxi není možné dosáhnout 0.7 bitů na symbol neboť potřebujeme ještě znát hodnotu prvního
+prvku, abychom mohli sekvenci rekonstruovat.
+KKO - Kódování a komprese dat
+29
+Vztah entropie a kódování – rozšíření zdroje (source extension)
+▪ Produkuje-li zdroj informace 𝒮 symboly 𝑎1, 𝑎2, … , 𝑎𝑘 s pravděpodobnostmi výskytu 𝑝𝑖 =
+𝑃(𝑎𝑖), potom n-násobným rozšířením zdroje 𝒮 nazýváme zdroj 𝒮
+𝑛
+, jehož symboly jsou
+všechna slova 𝑎𝑖1
+𝑎𝑖2 ⋯ 𝑎𝑖𝑛
+délky 𝑛 původní abecedy.
+– V případě i.i.d., platí 𝑃(𝑎𝑖1
+𝑎𝑖2 ⋯ 𝑎𝑖𝑛
+) = 𝑃(𝑎𝑖1
+)𝑃(𝑎𝑖2
+) … 𝑃(𝑎𝑖𝑛
+),
+jinak 𝑃(𝑎𝑖1
+𝑎𝑖2 ⋯ 𝑎𝑖𝑛
+) = 𝑃(𝑎𝑖𝑛
+|𝑎𝑖1 ⋯ 𝑎𝑖𝑛−1
+)
+▪ VĚTA: Entropie rozšířeného zdroje je rovna 𝐻(𝒮
+𝑛
+) = 𝑛𝐻 𝒮 .
+– Při n-násobném rozšíření se nemění množství informace obsažené v jednom symbolu.
+Pracujeme ale s n-ticemi a proto entropie musí být n-krát větší.
+▪ Příklad pro sekvenci 1 2 1 2 3 3 3 3 1 2 3 3 3 3 1 2 3 3 1 2
+– Zkoumáme-li symboly izolovaně, dostáváme P(1) = P(2) = 1/4, P(3) = 1/2 a entropie je H(S)=1.5 bitů.
+– Jinou možností je podívat se na entropii Markovova modelu 1. řádu, tj. P(1)=4/19, P(2)=5/19,
+P(3)=10/19, P(1|2)=1/4, P(1|3)=3/4, P(2|1)=1, P(3|2)=3/10, P(3|3)=7/10 H(S)=0.63 bitů.
+– Vidíme však, že za symbolem 1 s velkou pravděpodobností následuje symbol 2. A dále, že za symbolem
+3 následuje další symbol 3. Po rozšíření na dvojice symbolů dostáváme pouze dva typy symbolů a sice 1
+2 a 3 3 s pravděpodobnostmi výskytu P(1 2)=1/2 a P(3 3)=1/2. Entropie je rovna H(S2
+)=1 bit, tzn. 0.5 bitu
+na symbol.
+KKO - Kódování a komprese dat
+30
+Entropie rozšířeného zdroje
+▪ Příklad: odvození 𝐻(𝒮
+𝑛
+) = 𝑛𝐻 𝒮 pro 𝑛 = 2:
+– Σ = 𝑎0, … , 𝑎𝑛
+– 𝐻 𝒮 = − σ𝑖 𝑃 𝑎𝑖
+log2𝑃 𝑎𝑖
+– 𝐻 𝒮
+2 = − σ𝑖 σ𝑗 𝑃 𝑎𝑖𝑎𝑗
+log2𝑃 𝑎𝑖𝑎𝑗
+– v případě i.i.d. sekvence platí, že 𝑃 𝑎𝑖𝑎𝑗 = 𝑃(𝑎𝑖)𝑃 𝑎𝑗
+KKO - Kódování a komprese dat
+31
+𝐻 𝒮
+2 = −෍
+𝑖
+෍
+𝑗
+𝑃 𝑖 𝑃 𝑗 log2𝑃 𝑖 𝑃 𝑗 = −෍
+𝑖
+෍
+𝑗
+𝑃 𝑖 𝑃 𝑗 (log2𝑃 𝑖 + log2𝑃 𝑗 ) =
+−෍
+𝑖
+෍
+𝑗
+𝑃 𝑖 𝑃 𝑗 log2𝑃 𝑖 −෍
+𝑖
+෍
+𝑗
+𝑃 𝑖 𝑃 𝑗 log2𝑃 𝑗 =
+−෍
+𝑗
+𝑃 𝑗 ෍
+𝑖
+𝑃 𝑖 log2𝑃 𝑖 −෍
+𝑖
+𝑃 𝑖 ෍
+𝑗
+𝑃 𝑗 log2𝑃 𝑗 =
+෍
+𝑗
+𝑃 𝑗 𝐻 𝒮 + ෍
+𝑖
+𝑃(𝑖)𝐻 𝒮 = 𝐻 𝒮 ෍
+𝑗
+𝑃 𝑗 + 𝐻 𝒮 ෍
+𝑖
+𝑃(𝑖) = 2𝐻 𝒮
+Existence optimálního kódování
+▪ Změnou zdrojové abecedy na 𝑛-tice (nezávislých) symbolů původní abecedy (tj.
+uvažujeme rozšířený zdroj) se lze s průměrnou délkou kódování libovolně přiblížit
+entropii zdroje pro 𝑛 → ∞.
+▪ Důkaz (binární kódová abeceda):
+– Dle Shannonovy věty o kódování platí pro Lmin = 𝐶(𝒮
+𝑛
+) :
+𝐻(𝒮
+𝑛
+) ≤ 𝐿𝑚𝑖𝑛 < 𝐻(𝒮
+𝑛
+) + 1
+– Protože 𝐻(𝒮
+𝑛
+) = 𝑛𝐻 𝒮 , tak platí
+𝑛𝐻 𝒮 ≤ 𝐿𝑚𝑖𝑛 < 𝑛𝐻 𝒮 + 1
+a tedy
+𝐻 𝒮 ≤
+𝐿𝑚𝑖𝑛
+𝑛
+< 𝐻 𝒮 +
+1
+𝑛
+– Počet bitů na symbol Lmin =
+𝐿𝑚𝑖𝑛
+𝑛
+a tedy
+𝐻 𝒮 ≤ 𝐿𝑚𝑖𝑛 < 𝐻 𝒮 +
+1
+𝑛
+KKO - Kódování a komprese dat
+32
+Optimální kódování
+▪ Hlavní teorém, který dokázal Shannon v podstatě říká, že existují téměř optimální
+kompresory (zvané entropické kodéry), ale neříká, jak je vytvořit.
+– Aritmetické kódování je příkladem entropického kodéru, stejně tak jako slovníkové algoritmy, ty však
+vyžadují pro práci na entropické úrovni obrovské objemy dat.
+▪ Shannonova entropie (zdroje, posloupnosti symbolů) při uvažování (více) závislostí mezi
+výskyty symbolů je vždy menší nebo rovna entropii při nezávislém (méně závislém)
+výskytu symbolů, tzn. entropie je závislá na uvažovaném modelu struktury dat.
+▪ Uvažováním závislostí mezi výskyty symbolů posloupnosti nesnižujeme skutečnou
+entropii zdroje dat.
+– Entropie je vlastností zdroje a je stejná pro všechna data ze zdroje.
+– Snižujeme náš odhad této entropie uvažováním delších n-tic symbolu dat a závislostí mezi výskyty
+symbolu v modelu
+▪ Pozor na velikost vzorku dat a řád modelu.
+– Nedostatek informace může vést ke zkreslení pravděpodobnostního rozdělení
+KKO - Kódování a komprese dat
+33
+Vsuvka - redundance dat
+▪ Entropie dat závisí na jednotlivých pravděpodobnostech 𝑝𝑖
+, a je největší v případě, když
+je všech 𝑛 pravděpodobností shodných, tj. 𝑝𝑖 =
+1
+𝑛
+. Tato skutečnost je použita k
+definování redundance dat.
+▪ DEFINICE: Redundance dat 𝑅 odpovídá rozdílu mezi nejvyšší možnou entropií množiny
+symbolů 𝒜 a její skutečnou entropií. Tedy
+𝑅 = 𝐻𝑚𝑎𝑥(𝒜) − 𝐻(𝒜) = log2 𝑛 +෍
+𝑖=1
+𝑛
+𝑝𝑖
+log2 𝑝𝑖
+▪ Pro zcela komprimovaná data (tj. bez redundance) vykazující charakter náhodných dat je
+𝑅 = 0
+KKO - Kódování a komprese dat
+34
+𝑛 = |𝒜|
+Příklad: entropie anglického textu
+▪ Jaký je informační obsah v angličtině, tj. mez, na kterou
+se může anglický text komprimovat?
+– Pro určení informačního obsahu použijeme střední počet bitů na
+znak.
+▪ Předpokládáme-li stejnou pravděpodobnost všech
+symbolů, vlastní kód pro každý znak a 96 symbolů (počet
+na standardní klávesnici)
+– každý znak potřebuje log296 = 6.6 bitů na znak.
+▪ Pokud použijeme pravděpodobnosti symbolů podle
+anglického textového korpusu
+– dostaneme entropii 4.5 bitů/znak.
+▪ Pokud text rozdělíme na osmice znaků a změříme
+entropii těchto bloků, dostaneme
+– entropii kolem 14 bitů, tj. přibližně 1.75 bitů/znak.
+KKO - Kódování a komprese dat
+35
+Jurgens, A. Entropy in Written English 2016
+(Corpus of 155 billion words googlebooks.byu.edu)
+Příklad: entropie anglického textu
+▪ Četnost výskytu bigramů v anglickém textu ▪ Nejčetnější n-gramy
+KKO - Kódování a komprese dat
+36
+Jurgens, A. Entropy in Written English 2016 (Corpus of 155 billion words googlebooks.byu.edu)
+Kódování s proměnnou délkou kódových slov – motivace
+▪ Uvažujme čtyři symboly W={a1
+, a2
+, a3
+, a4
+}. Pokud se vyskytují v našich datových
+řetězcích se shodnými pravděpodobnostmi, pak entropie dat H a tudíž i nejmenší
+průměrný počet bitů potřebný na reprezentaci symbolu je
+𝑓 = −4(0.25 log20.25) = 2.
+– Symbolům můžeme přiřadit čtyři 2-bitové kódové kombinace 00, 01, 10 a 11. Protože pravděpodobnosti
+jsou shodné, redundance je nulová a data se pod 2 bity/symbol nedají zredukovat.
+▪ Nyní uvažme případ p(a1
+)=0.49, p(a2
+)=0.25, p(a3
+)=0.25 a p(a4
+)=0.01. Nyní mají data
+entropii 𝐻 = – (0.49 log20.49 + 0.25 log20.25 + 0.25 log20.25 + 0.01 log20.01) ≈
+− (−0.05 – 0.5 – 0.5 – 0.066) = 1.57. Nejmenší průměrný počet bitů potřebných k
+reprezentaci jednotlivých symbolů klesl na 1.57.
+– Je zřejmé, že když přidělíme symbolům 2-bitové kombinace, nemůžeme dosáhnout průměrné délky
+kódování menší než 2, redundance bude 𝑅 = log24 − 1.57 = 0.43.
+▪ Abychom se přiblížili entropii, jedinou možností je přidělovat symbolům jednoznačně
+dekódovatelné kódy s proměnnou délkou. Jak ale volit délky a obsah kódových slov?
+KKO - Kódování a komprese dat
+38
+Kraft-McMillanova nerovnost
+▪ Kraft-McMillanova nerovnost tvrdí, že jednoznačně dekódovatelné kódování s
+předepsanou délkou slov existuje právě tehdy, když existuje prefixový kód se stejnou
+délkou slov.
+– dává do vztahu délky kódových slov jednoznačně dekódovatelných kódů a umožňuje omezit naši
+pozornost pouze na prefixové kódy.
+▪ McMillanova nerovnost (McMillan, 1956)
+– Jednoznačně dekódovatelný kód obsahující 𝑛 kódových slov, která mají délku 𝐿𝑖
+, jehož kódová slova jsou
+generována nad abecedou Γ o mohutnosti Γ = D, existuje právě tehdy, když
+෍
+𝑖=1
+𝑛
+𝐷
+−𝐿𝑖 ≤ 1
+▪ Kraftova nerovnost (Kraft, 1949)
+– Je-li Γ abeceda mohutnosti D a máme dánu množinu 𝑛 celých čísel (𝐿1
+, 𝐿2
+, … 𝐿𝑛
+), pak nutná a
+dostatečná podmínka, že existuje prefixové kódování jehož kódová slova mají délku odpovídající 𝐿𝑖
+je, že
+platí
+෍
+𝑖=1
+𝑛
+𝐷
+−𝐿𝑖 ≤ 1
+KKO - Kódování a komprese dat
+39
+Kraft-McMillanova nerovnost – komentář
+▪ Pokud máme dánu množinu délek (𝐿1
+, 𝐿2
+, … 𝐿𝑛) splňující podmínku nerovnosti, pak věta
+tvrdí, že existuje prefixové kódování s kódovými slovy stejných délek.
+– Př. 1: Mějme 𝑙 = (1,2,3), můžeme ověřit, že 2
+−1 + 2
+−2 + 2
+−3 = 7/8, což je hodnota menší než 1.
+Příkladem prefixového kódování může být (0,10,110).
+▪ Jednoznačně dekódovatelné kódování splňující podmínku nerovnosti nemusí být nutně
+prefixové
+– Př. 2: kódování (0, 01, 11) splňuje podmínku, neboť 2
+−1 + 2
+−2 + 2
+−2 = 1, ale není prefixové.
+Prefixovým kódováním se stejnými délkami kódu je (0,10,11).
+– Př. 3: kódování slovy fixní délky (např. binární kód) je jednoznačně dekódovatelné, neboť pro 𝑛 symbolů
+je 𝐿𝑖 = log2 𝑛 (𝐿𝑖 = log2 𝑛, je-li 𝑛 je mocnina 2) a suma je rovna
+▪ Nerovnost lze pochopit, pokud se podíváme na vlastnosti reprezentace prefixového
+kódování pomocí 𝑛-árního stromu
+– viz příklad dále
+KKO - Kódování a komprese dat
+40
+෍
+𝑖=1
+𝑛
+2
+−𝐿𝑖 = ෍
+𝑖=1
+𝑛
+2
+− log2 𝑛 = ෍
+𝑖=1
+𝑛
+1
+𝑛
+= 1
+Princip konstrukce prefixového kódu – důkaz Kraftovy nerovnosti
+▪ Při konstrukci kódování stačí znát délky kódových slov, která chceme použít.
+– Pomocí délek pak sestavíme prefixové kódování. Není nutné se zabývat jiným typem kódování, protože
+dle McMillanovy věty jsou prefixové kódování stejně obecné jako ostatní jednoznačně dekódovatelné
+kódování. Způsob volby délek plyne z Kraftovy nerovnosti.
+▪ Důkaz Kraftovy nerovnosti pro binární kódování:
+– Předpokládejme, že délky 𝐿1, 𝐿2, … , 𝐿𝑟
+jsou uspořádány tak, aby tvořily neklesající posloupnost
+𝐿1 ≤ 𝐿2 ≤ ⋯ ≤ 𝐿𝑟
+– Nejprve zvolíme kódové slovo 𝑓(𝑎1) délky 𝐿1. Poté zvolíme libovolné slovo 𝑓(𝑎2) délky 𝐿2, které nemá
+prefix 𝑓 𝑎1 a tento postup opakujeme až nakonec zvolíme slovo 𝑓(𝑎𝑟) .
+– V případě binárního kódu máme 2
+𝐿1 slov délky 𝐿1. Při volbě 𝑓(𝑎2) se musíme vyhnout slovům délky 𝐿2
+mající prefix 𝑓(𝑎1) . Takových je 2
+𝐿2−𝐿1, protože každé takové slovo vznikne doplněním 𝐿2 − 𝐿1 bitů k
+prefixu. Platí 2
+𝐿2−𝐿1 < 2
+𝐿2. Při volbě slova délky 𝐿3 se musíme vyhnout všem slovům s prefixem 𝑓(𝑎1)
+a prefixem 𝑓(𝑎2), takových je 2
+𝐿3−𝐿1 a 2
+𝐿3−𝐿2. Potřebujeme aby celkový počet slov délky 𝐿3 byl
+alespoň o 1 větší než počet slov, kterým se vyhýbáme, tj. 2
+𝐿3−𝐿1 + 2
+𝐿3−𝐿2 + 1 ≤ 2
+𝐿3, což po úpravě
+dává 2
+−𝐿1 + 2
+−𝐿2 + 2
+−𝐿3 ≤ 1
+– Abychom mohli dojít až do konce, je zřejmé, že musí platit 2
+−𝐿1 + 2
+−𝐿2 + ⋯ + 2
+−𝐿𝑟 ≤ 1
+KKO - Kódování a komprese dat
+41
+
+Kraft-McMillanova nerovnost – příklad konstrukce kódu
+▪ Mějme zkonstruovat co možná nejkratší prefixové kódování 𝑓pro W={a1,…,a5} a Σ={0,1}.
+– Zvolme 𝑓(a1)=0. Pak ale ostatní kódy musí začínat symbolem 1, aby se jednalo o prefixový kód.
+Přiřadíme kódy následovně: {0, 10, 110, 1110, 1111}. Dostáváme délky L={1,2,3,4,4}, čímž splníme
+podmínku nerovnosti neboť 2−1 + 2−2 + 2−3 + 2−4 + 2−4=1.
+– Tím, že jsme na počátku zvolili 𝑓(a1)=0, jsme vyčerpali celou levou část binárního stromu a zbylé kódové
+značky tudíž musí ležet v pravé polovině. Volbou a2=10 jsme vyčerpali polovinu pravé poloviny, tudíž 1/4
+kapacity binárního stromu.
+– Pokud bychom chtěli získat kódování pro délky L={1,2,3,3,4}, zjistíme, že to není možné neboť jednak
+neplatí nerovnost (2
+−1 + 2−2 + 2−3 + 2−3 + 2−4=1.0625) a jednak není ve stromu kapacita pro symbol a5.
+KKO - Kódování a komprese dat
+42
+a2 a1
+0
+a4 a5
+0 1
+1
+1
+0
+a3
+1
+0
+a2 a1
+0
+a4
+a5
+1
+1
+0
+a3
+1
+0
+?
+Kraft-McMillanova nerovnost – důsledek
+▪ Důsledek: Lze dokázat, že pokud máme abecedu 𝑛 symbolů a kódové slovo některého ze
+symbolů zkrátíme určitým faktorem, tak jiné se musí prodloužit o větší faktor.
+▪ Příklad:
+– Uvažujme binární kódování s pevnou délkou kódových značek, kde první symbol zkrátíme, druhý
+prodloužíme a ostatní symboly zakódujeme pomocí log2𝑛 bitů. Označme délky 𝐿1 = log2 𝑛 − 𝑎,
+𝐿2 = log2 𝑛 + 𝑏, a 𝐿3 = 𝐿4 = · · · = 𝐿𝑛
+= log2 𝑛, kde 𝑎 and 𝑏 jsou kladné hodnoty.
+Pro součet platí, že
+– Kraft-McMillanova nerovnost vyžaduje, aby platilo , tj.
+– Po úpravě dostáváme
+– Z nerovnosti vyplývá, že 𝑎 ≤ 1, jinak by byl výraz 2 − 2
+𝑎
+záporný. Protože 𝑎 odpovídá
+komprimovanému symbolu, musí se jednat o hodnotu mezi (0,1].
+V tomto rozsahu je však 𝑏 vždy větší než 𝑎.
+KKO - Kódování a komprese dat
+43
+෍
+1
+𝑛
+2
+−𝐿𝑖 = 2
+−𝐿𝑖 + 2
+−𝐿2 + ෍
+3
+𝑛
+2
+− log2 𝑛 = 2
+− log2 𝑛+𝑎 + 2
+− log2 𝑛−𝑏 + ෍
+1
+𝑛
+2
+− log2 𝑛 − 2 ⋅ 2
+− log2 𝑛 =
+2
+𝑎
+𝑛
++
+2
+−𝑏
+𝑛
++ 1 −
+2
+𝑛
+2
+𝑎
+𝑛
++
+2
+−𝑏
+𝑛
++ 1 −
+2
+𝑛
+≤ 1
+2
+𝑎
+𝑛
++
+2
+−𝑏
+𝑛
+−
+2
+𝑛
+≤ 0
+𝑏 ≥ − log2(2 − 2
+𝑎
+)
+𝑎 = 1 → 𝑏 ≥ − log2 0 = ∞ 𝑎 = 0.1 → 𝑏 ≥ − log2 2 − 2
+0.1 ≈ 0.10745
+Vztah entropie a Kraft-McMillanovy nerovnosti
+▪ Délku kódových slov 𝐿𝑖 můžeme definovat jako součet optimální délky dle entropie a
+hodnoty o kterou je nutné kódovou značku prodloužit, tj. 𝐿𝑖 = − log2 𝑃𝑖 + 𝐸𝑖
+▪ Z definice délky můžeme získat
+2
+−𝐿𝑖 = 2
+log2 𝑃𝑖−𝐸𝑖 =
+2
+log2 𝑃𝑖
+2
+𝐸𝑖
+=
+𝑃𝑖
+2
+𝐸𝑖
+▪ Nyní pro jednoduchost předpokládejme, že 𝐸𝑖 = 𝐸,
+pak z Kraft-McMillanovy nerovnosti plyne, že
+▪ Tím jsme ukázali, že délka kódových slov jednoznačně dekódovatelného kódování je
+větší nebo rovna hodnotě odpovídající entropii.
+KKO - Kódování a komprese dat
+44
+2
+𝐸 ≥ 1 𝐸 ≥ 0 1 ≥ ෍
+𝑖=1
+𝑛
+2
+−𝐿𝑖 = ෍
+𝑖=1
+𝑛
+𝑃𝑖
+2
+𝐸
+=
+σ𝑖=1
+𝑛 𝑃𝑖
+2
+𝐸
+=
+1
+2
+𝐸
+, tj , tj
+𝐿𝑖 = − log2 𝑃𝑖
+Návrh optimálního prefixového kódování
+▪ Je-li dána pravděpodobnost výskytu symbolů zdrojové abecedy, pak problematika
+návrhu optimálního prefixového kódování (tj. takového, které má nejmenší možnou
+průměrnou délku kódových slov) s jednotnou cenou kódování jednotlivých kódových
+slov kódující vstup symbol po symbolu, kde jednotlivé výskyty symbolů jsou nezávislé a
+stejně rozdělené, je vyřešený problém (Huffman, 1952).
+▪ Princip tvorby binárního Huffmanova stromu pro abecedu Σ = (𝑎1, … , 𝑎𝑛) a
+pravděpodobnosti výskytu P 𝑎𝑖
+:
+– Nalézt symboly 𝑎1 a 𝑎2 z Σ s nejmenší pravd. a nahradit je novým symbolem 𝑎 a přiřadit mu pravd.
+𝑃 𝑏 = 𝑃 𝑎1 + 𝑃 𝑎2 . Vytvořit uzel 𝑎 a přiřadit mu potomky 𝑎1a 𝑎2. Pokračovat dále dokud
+nezůstane jediný symbol. Výsledkem je binární strom odpovídající optimálnímu prefixovému kódu.
+▪ Složitost algoritmu je O(n log n) nebo O(n) pokud jsou pravděpodobnosti seřazeny.
+– Příklad Σ = 𝑎, 𝑏, 𝑐, 𝑑, 𝑒, 𝑓 , P =
+1
+18
+{2,2,3,3,3,5}
+KKO - Kódování a komprese dat
+45
+Je získané kódování opravdu optimální?
+Návrh optimálního prefixového kódování
+▪ Příklad Σ = 𝑎, 𝑏, 𝑐, 𝑑, 𝑒, 𝑓 , P =
+1
+18
+{2, 2, 3, 3, 3, 5}
+– P = 0.11ത, 0.11ത, 0.16ത, 0.16ത, 0.16ത, 0.27ത
+– L = 3.17, 3.17, 2.58, 2.58, 2.58, 1.85
+– L෠ = 3, 3, 2, 3, 3, 2
+– P෡ = 0.125, 0.125, 0.25, 0.125, 0.125, 0.25
+KKO - Kódování a komprese dat
+46 2
+−𝐿𝑖 = 𝑃෡𝑖
+Kódování celých čísel a univerzální kódování
+▪ V případě kódování celých čísel hledáme takový předpis, který bude vést na
+jednoznačně dekódovatelné (tj. prefixové) a univerzální kódování.
+▪ Kódování je univerzální právě tehdy, přiřazuje-li vstupním slovům kódová slova tak, že
+jejich průměrná délka je ohraničena výrazem 𝑐1(𝐻 + 𝑐2), kde 𝐻 odpovídá entropii
+zdroje dat
+– Uvažujeme-li libovolný zdroj dat s nenulovou entropií, pak univerzální kódování aplikované na tento
+zdroj má průměrnou délku kódových slov rovnou násobku průměrné délky kódových slov optimálního
+kódování.
+– Velikosti konstant 𝑐1 a 𝑐2 určují míru redundance (dosažené komprese).
+– Blíží-li se průměrná délka kódových slov entropii, tj. 𝑐1 = 1, hovoříme o asymptoticky optimálním
+kódování.
+▪ Výhody univerzálního kódování
+– oproti Huffmanovu kódování, které vede taktéž na optimální kódování, není nutné znát přesné
+pravděpodobnosti s jakými se jednotlivé symboly vyskytují. Postačí uspořádat jednotlivé symboly tak,
+aby reflektovaly pravděpodobnostní rozložení.
+– kódová slova jsou statická, což zjednodušuje proces kódování i dekódování. Není nutné je konstruovat
+pro každý blok dat. Statická kódová slova není nutné ukládat do výstupního toku, aby byla umožněna
+jednoznačná rekonstrukce.
+KKO - Kódování a komprese dat
+52
+Kódování celých čísel
+▪ Neuniverzální kódování:
+– Unární kód
+– Start-step-stop kódy
+– Golomb-Riceovy kódy
+▪ Univerzální kódování:
+– Variable-length quantity (VLQ)
+– Eliasovovo gama, delta (asympt. optimální) a omega kódování (asympt. optimální)
+– Exponenciální Golombovy kódy
+– Fibonacciho kód
+– Levenshteinův kód (asympt. optimální)
+– Yamamotovy kódy, Goldbachovy kódy, …
+▪ Typicky se jedná o kódování celých nenulových čísel, ℕ1 = ℕ
++ = ℕ.
+– předpokládáme 𝑝 𝑛 ≥ 𝑝 𝑛 + 1 ≥ 𝑝 𝑛 + 2 pro n ∈ ℕ
+– Rozšíření na ℕ0 = ℕ ∪ {0}: kódovat hodnotu 𝑛 + 1
+– Rozšíření na ±ℕ1: bijekce ℕ1 → {1,−1,2,−2,3,−3,…}
+KKO - Kódování a komprese dat
+53
+Unární kódování
+▪ Unární kód je kódování, které
+reprezentuje přirozené číslo 𝑛 pomocí
+– 𝑛 jedniček následovaných jedinou 0
+uvažujeme-li 𝑛 ≥ 0, nebo alternativně
+– 𝑛 − 1 jedniček následovaných jedinou
+nulou uvažujeme-li 𝑛 > 0.
+▪ Formálně lze definovat jako kódování
+(Σ, 𝔹, 𝑓), kde 𝔹 = 0,1 , 𝑓: Σ → 𝔹+ a
+buď Σ = ℕ0, 𝑓 𝑛 = 1
+𝑛0 nebo
+Σ = ℕ1, 𝑓 𝑛 = 1
+𝑛−10
+– Alternativně lze prohodit význam
+jedničky a nuly.
+▪ Tabulka kódových slov pro prvních pět
+hodnot:
+KKO - Kódování a komprese dat
+54
+n
+Unární
+kód
+Alt. unární
+kód
+Reverzní
+unár. kód
+Alt. rev.
+unár.
+Kód
+0 - 0 - 1
+1 0 10 1 01
+2 10 110 01 001
+3 110 1110 001 0001
+4 1110 11110 0001 00001
+Vlastnosti unárního kódování
+▪ Jednoduchá implementace
+KKO - Kódování a komprese dat
+55
+def unary_encode(n):
+while n > 0:
+write_bit(1)
+n = n - 1
+write_bit(0)
+def unary_decode():
+n = 0
+while read_bit() == 1:
+n = n + 1
+return n
+▪ Prefixová vlastnost
+– Jedná se o bezprostředně dekódovatelné kódování?
+▪ Použití
+– Kód typicky tvoří součást jiných kódování s proměnnou délkou značek (viz Elias).
+▪ Jak se vypořádat s negativními hodnotami?
+– viz bijekce
+Optimalita unárního kódování
+▪ Omezíme-li se na variantu 𝑛 > 0, pak kódování je výhodné použít a je optimální
+tehdy, kdy čísla na vstupu kodéru mají charakter exponenciálního rozložení
+pravděpodobnosti 𝑷(𝒏) = 𝟐
+−𝒏
+.
+– V tomto případě bude kódování stejně efektivní jako Huffmanovo kódování avšak mnohem
+efektivnější co se složitosti kódování a dekódování týče.
+▪ Příklad: Kódové značky získané pomocí unárního
+a Huffmanova kódování pro exponenciální
+rozložení pravděpodobnosti
+– Kódy mají stejnou délku s vyjímkou hodnoty 6, kdy
+𝑃 6 = 2
+−5 ≈ 2
+−6
+a symbol neodpovídá přesně
+pravděpodobnosti protože je malý počet symbolů
+a musí platit, že σ𝑖=1
+6 𝑃(𝑖) = 1
+KKO - Kódování a komprese dat
+56
+Start-Step-Stop kódování
+▪ Start-Step-Stop kódování je celá třída kódování. Konkrétní podoba funkce 𝑓 je
+charakterizována trojicí celočíselných parametrů (𝑠𝑡𝑎𝑟𝑡, 𝑠𝑡𝑒𝑝, 𝑠𝑡𝑜𝑝).
+– Kódovou značku pro celé číslo 𝑛 tvoří dvě části – předpona a přípona délky 𝐿𝑠
+– Hodnoty jsou rozděleny do skupin sdružující kódová slova stejné délky
+– Délka kódových slov se postupně prodlužuje (𝑠𝑡𝑒𝑝 > 0), případně zůstává konstantní (𝑠𝑡𝑒𝑝 = 0)
+– Počet hodnot ve skupině se postupně zvětšuje (𝑠𝑡𝑒𝑝 > 0), případně zůstává konstantní (𝑠𝑡𝑒𝑝 = 0)
+▪ Parametry:
+– Parametr 𝑠𝑡𝑎𝑟𝑡 určuje počáteční délku přípony,
+– Parametr 𝑠𝑡𝑒𝑝 kolik bitů se přidá v každé skupině, tzn. že délka kódové značky roste o násobky 𝑠𝑡𝑒𝑝.
+– Parametr 𝑠𝑡𝑜𝑝 omezuje maximální délku kódové značky a je volen tak, abychom byli schopni zakódovat
+požadovaný rozsah. Hodnota 𝑠𝑡𝑜𝑝 odpovídá hodnotě 𝑠𝑡𝑎𝑟𝑡 + 𝑘𝑚𝑎𝑥 𝑠𝑡𝑒𝑝, kde 𝑘𝑚𝑎𝑥 ∈ ℕ.
+KKO - Kódování a komprese dat
+58
+0
+𝐿𝑠 = 𝑠𝑡𝑎𝑟𝑡 𝐿𝑠 = 𝑠𝑡𝑎𝑟𝑡 + 𝑠𝑡𝑒𝑝 𝐿𝑠 = 𝑠𝑡𝑎𝑟𝑡 + 2𝑠𝑡𝑒𝑝
+...
+𝐿𝑠 = 𝑠𝑡𝑜𝑝
+2 𝑛𝑚𝑎𝑥 𝑠𝑡𝑎𝑟𝑡 − 1 2
+𝑠𝑡𝑎𝑟𝑡 +
+2
+𝑠𝑡𝑎𝑟𝑡+𝑠𝑡𝑒𝑝 − 1
+Start-Step-Stop kódování
+▪ Pro dané parametry je možné zakódovat hodnotu v rozsahu 0 ≤ 𝑛 < 𝑛max, kde
+▪ Kódovou značku pro celé číslo 𝑛 tvoří dvě části:
+– předpona, která je tvořena modifikací unárního kódu (poslední skupina kódována odlišně) a
+– přípona délky 𝑠𝑡𝑎𝑟𝑡 + 𝑘 𝑠𝑡𝑒𝑝 bitů, která kóduje hodnotu 𝑛 zmenšenou o počet kódových slov, které
+předchází první kódovou značku v 𝑘-té skupině
+KKO - Kódování a komprese dat
+59
+𝑛𝑚𝑎𝑥 =
+2
+𝑠𝑡𝑜𝑝+𝑠𝑡𝑒𝑝 − 2
+𝑠𝑡𝑎𝑟𝑡
+2
+𝑠𝑡𝑒𝑝 − 1
+111…..110
+𝟏
+𝒌𝟎
+𝑘 + 1 𝑠𝑡𝑎𝑟𝑡 + 𝑘 ⋅ 𝑠𝑡𝑒𝑝
+… … … . . … … … … … … . 𝑥2𝑥1𝑥0
+Start-Step-Stop kódování
+▪ Příklad: Start-Step-Stop kód (3,2,9)
+– kódové značky jsou organizovány do 4 skupin
+– poslední prefix není 1110 ale pouze 111. Použitím 1110 bychom plýtvali neboť z parametrů víme, že se
+používají právě čtyři skupiny (9-3)/2 + 1 = 4
+– rozsah hodnot:
+KKO - Kódování a komprese dat
+60
+0 ≤ 𝑛 <
+2
+𝑠𝑡𝑜𝑝+𝑠𝑡𝑒𝑝 − 2
+𝑠𝑡𝑎𝑟𝑡
+2
+𝑠𝑡𝑒𝑝 − 1
+=
+2
+9+2 − 2
+3
+2
+2 − 1
+=
+2048 − 8
+3
+= 680
+Kódové značky pro 𝑛 v daném rozsahu Rozsah
+0 − 7
+8 − 39
+40 − 167
+168 − 679
+Start-Step-Stop kódování
+▪ Pokud jsou parametry 𝑠𝑡𝑎𝑟𝑡 a 𝑠𝑡𝑜𝑝 blízké hodnoty, pak kódová slova mají
+pouze několik různých délek.
+– Příklad: Start-Step-Stop kód (10,2,14), kde kódové značky jsou organizovány do 3 skupin
+KKO - Kódování a komprese dat
+61
+Start-Step-Stop kódování
+▪ Změnou parametrů lze definovat kódování pro libovolné 𝑛 ∈ ℕ mající různé parametry
+co se optimality týče
+– exponenciální distribuce hodnot (unární kód), geometrická distribuce hodnot (Golombův kód), …
+▪ Speciální případy:
+– Trojice (𝑛, 1, 𝑛) definuje standardní 𝑛 -bitové binární kódy, což můžeme ověřit přímou konstrukcí.
+Snadno zjistíme, že počet těchto kódů je 2
+𝑛
+– Trojice (0, 0, ∞) definuje kód 0, 10, 110, 1110, ... , což je unární kód přiřazený celým číslům ℕ0
+– Trojice (0, 1, ∞) definuje variantu Eliasova gama kódu
+– Trojice (𝑘, 𝑘, ∞) definuje další variantu Eliasova gama kódu
+– Trojice (𝑘, 0, ∞) definuje Riceův kód s parametrem 𝑘
+– Trojice (𝑘, 1, ∞) definuje exponenciální Golombův kód s parametrem 𝑘
+KKO - Kódování a komprese dat
+62
+Golomb-Riceovy kódy
+▪ Golombův kód (1966) umožňuje zakódovat libovolnou nezápornou hodnotu 𝑛 > 0
+– Kódovou značku pro celé číslo 𝑛 tvoří dvě části – předpona 𝑞 a přípona 𝑟
+– Hodnoty jsou rozděleny do skupin fixní délky 𝑚 ≥ 1 odpovídající parametru kódu, tzv. modulu 𝑚
+– Délka kódových slov se postupně prodlužuje s rostoucím indexem skupiny
+▪ Kódové slovo je pro dané 𝑚 a 𝑛 tvořeno zřetězením:
+– unárně kódované hodnoty 𝑞 =
+𝑛
+𝑚
+(celá část po dělení modulem)
+– hodnoty 𝑟 = 𝑛 − 𝑞𝑚 (zbytek po celočíselném dělení modulem)
+kódované pomocí zkráceného binárního kódování (truncated binary
+encoding)
+KKO - Kódování a komprese dat
+63
+1
+𝐿0 𝐿1 > 𝐿0 𝐿2 > 𝐿1
+...
+𝑚 − 1 2𝑚 − 1 3𝑚 − 1
+111…..110
+𝟏
+𝒌𝟎
+index v rámci
+skupiny (𝑟)
+index
+skupiny (𝑞)
+Golomb-Riceovy kódy
+▪ Hodnota 𝑟 je kódovaná binárním kódem délky 𝑐 nebo 𝑐 + 1 bitů
+– Pokud 𝑚 ≠ 2
+𝑐
+, pak prvních 2
+𝑐 – 𝑚 hodnot 𝑟 je zakódováno jako celá čísla bez znaménka se šířkou
+𝑐 − 1 bitů (tj. log2 𝑚 ), zbytek (tj. hodnoty až po 𝑚 − 1) je zakódován se šířkou 𝑐 bitů (tj. log2 𝑚 ) s
+tím, že kódujeme hodnotu 𝑟 + 2
+𝑐 − 𝑚
+– Pokud 𝑚 = 2
+𝑐
+, pak se všechny hodnoty 𝑟 kódují c-bitovými kódy.
+▪ Příklad: Zkonstruujte Golombův kód pro 𝑚 = 5
+– log2 5 = 2, log2 5 = 3, 𝑐 = 3, 2
+𝑐 − 𝑚 = 3
+– pro 𝑟 = 0,1,2 se 2-bitové binární reprezentace a pro 𝑟 = 3,4 se použijí 3-bitové binární reprezentace, tj.
+00, 01, 10, 110, 111
+KKO - Kódování a komprese dat
+64
+0 → 𝟎00,
+1 → 𝟎01,
+2 → 𝟎10,
+3 → 𝟎110,
+4 → 𝟎111,
+5 → 𝟏𝟎00,
+6 → 𝟏𝟎01,
+7 → 𝟏𝟎10,
+8 → 𝟏𝟎110,
+9 → 𝟏𝟎111,
+10 → 𝟏𝟏𝟎00,
+11 → 𝟏𝟏𝟎01,
+12 → 𝟏𝟏𝟎10,
+13 → 𝟏𝟏𝟎110,
+14 → 𝟏𝟏𝟎111,
+15 → 𝟏𝟏𝟏𝟎00,
+...
+Golomb-Riceovy kódy
+▪ Golombův kód pro případ, kdy 𝑚 = 2
+𝑘
+se nazývá Riceův kód řádu 𝑘.
+▪ Celé číslo 𝑛 ≥ 0 je kódováno jako dvojice báze a offset.
+– Báze 𝑛/2
+𝑘
+je zakódována unárním kódem zakončeným nulovým bitem a
+– offset odpovídá 𝑘 nejméně významným bitům binární reprezentace 𝑛.
+▪ Příklad:
+– uvažme 𝑘 = 2, tj. 𝑚 = 2
+2 = 4 pak hodnota 𝑛 = 9 je zakódována jako 110 01 neboť 9/4 = 2,
+hodnota 𝑛 = 3 je zakódována jako 0 11 neboť 3/4 = 0
+– Binární stromy reprezentující Riceovo kódování řádu 0, 1 a 2 a Golombovo kódování pro m=3:
+KKO - Kódování a komprese dat
+65
+𝑚 = 2
+0 𝑚 = 2
+1 𝑚 = 2
+2
+8 9 10 11
+𝑚 = 3
+Optimalita a význam Golomb-Riceova kódování
+▪ Věta: pro libovolný zdroj dat produkujícího symboly s geometrickým rozdělením
+𝑃 𝑛 = 𝑝
+𝑛 1 − 𝑝
+lze stanovit 𝑚 tak, aby Golombovo kódování bylo pro daný zdroj optimální.
+– Golombův kód je optimální prefixový kód pro zdroj produkující symboly s geometrickým
+pravděpodobnostním rozdělením, pokud je 𝑚 zvoleno tak, že platí
+𝑚 ≥ −
+log2 1 + 𝑝
+log2 𝑝
+> 𝑚 − 1
+– Pro dané 𝑝 existuje jediné řešení a sice
+𝑚 = −
+log2 1 + 𝑝
+log2 𝑝
+– Je-li 𝑚 dostatečně velké, pak platí 𝑝
+𝑚 ≈
+1
+2
+.
+▪ Využití: Golombův kód se používá pro bezeztrátovou kompresi obrazů (bezeztrátový
+JPEG-LS) a zvukových záznamů (FLAC, Apple Lossless – ALAC, MPEG-4 ALS).
+– takové rozdělení produkuje buď binární RLE nebo kódovaná chyba predikce
+KKO - Kódování a komprese dat
+66
+Význam Golomb-Riceova kódování v oblasti komprese
+▪ Máme-li binární zdroj produkující 0 a 1 nezávisle s pravděpodobností výskytu nuly 𝑝, pak
+pravděpodobnost výskytu sekvence 0
+𝑛1 odpovídá 𝑃 𝑛 = 𝑝
+𝑛 1 − 𝑝
+– Příklad sekvence: 00000100000000100001110000011
+– Dlouhé sekvence nul implikují 𝑝 ≈ 1, tudíž 𝐻 𝑝 = 𝑝 log 𝑝 ≪ 1
+– Entropické kódování aplikované přímo na binární sekvenci bude dosahovat špatných výsledků.
+▪ Použijeme-li RLE kódování na sekvenci nul a jedniček, kdy sekvence 0
+𝑛1 je nahrazena
+hodnotou 𝑛 (počet nul mezi dvěmi jedničkami), pak získáme sekvenci, která vykazuje
+charakter geometrického rozdělení
+– Pro příklad dostáváme sekvenci 𝑟: 5 8 4 0 0 5 0
+– Pro pravděpod. rozdělení RLE sekvence 𝑟, platí že 𝑃 𝑟 = 𝑛 = 𝑝
+𝑛 1 − 𝑝 ,
+což odpovídá pravděpodobnosti, že 𝑛 nul je následováno jedničkou
+KKO - Kódování a komprese dat
+67
+Golomb-Riceovy kódy – využití pro kompresi binárních řetězců
+▪ Komprese binárního řetězce probíhá následovně:
+1. spočítáme počet nul a jedniček,
+2. vypočteme pravděpodobnost nuly 𝑝,
+3. použijeme rovnici pro výpočet 𝑚,
+4. zkonstruujeme třídu Golombových kódů pro 𝑚 a
+5. pro každý sled 𝑛 nul zapíšeme Golombův kód 𝑛 do komprimovaného toku.
+▪ Pokud 𝑝 nelze stanovit předem, pak je nejlepší volbou adaptivní Golombův kód
+– Princip: pro doposud přijatá data vypočítej 𝑚 tak, aby 𝑝
+𝑚 ≤
+1
+2
+– Příklad: algoritmus RLGR - Adaptive Run-Length/Golomb-Rice encoding použitý v Microsoft RDP
+RemoteFX, JPEG-LS
+▪ Vliv parametru 𝑚
+– Pro malé hodnoty 𝑚 Golombovy kódů začínají jako krátké a rychle rostou. To je vhodné pro RLE v
+případech, kdy je pravděpodobnost 𝑝 nízká, což implikuje velmi málo dlouhých sledů.
+– Pro velké hodnoty 𝑚 jsou počáteční kódy dlouhé, ale jejich délky se zvyšují pomalu. Takové kódy mají
+smysl pro RLE, kde 𝑝 je velká, což implikuje, že se dají očekávat dlouhé sledy.
+KKO - Kódování a komprese dat
+68
+Golomb-Riceovy kódy – odvození kompresního poměru
+▪ Nechť ℙ[𝑟 = 𝑛] odpovídá pravd. že hodnota je součástí sledu délky 𝑛 (𝑛 − 1 nul
+následovaných jednou jedničkou). Nechť 𝑚 = 2
+𝑏
+▪ Pro 𝑏 = 6 a 𝑝 = 0.99 dosahuje kompresní účinnosti 91.89%
+(limit dle Shannonovy věty je 91.92%)
+KKO - Kódování a komprese dat
+69
+𝔼 compression ratio ℙ r=n = ෍
+𝑛=1
+∞
+compression ratio of 𝑛−run ℙ[𝑟 = 𝑛]
+= ෍
+𝑛=1
+∞
+𝑏 + 1 + 2
+−𝑏
+(𝑛 − 1)
+𝑛
+⋅ 𝑛𝑝
+𝑛−1 1 − 𝑝
+2
+= 1 − 𝑝
+2෍
+𝑗=0
+∞
+(𝑏 + 1 + 𝑗) ⋅ ෍
+𝑖=𝑗2
+𝑏+1
+𝑗+1 2
+𝑏
+𝑝
+𝑖−1
+= 1 − 𝑝
+2෍
+𝑗=0
+∞
+(𝑏 + 1 + 𝑗) ⋅ 𝑝
+2
+𝑏𝑗 − 𝑝
+2
+𝑏 𝑗+1
+= 1 − 𝑝 ⋅ 𝑏 + ෍
+𝑚=0
+∞
+𝑝
+2
+𝑏𝑚 = 1 − 𝑝 ⋅ 𝑏 + 1 − 𝑝
+2
+𝑏 −1
+Golomb-Riceovy kódy – příklad komprese délek sledů
+▪ Př. 1: Uvažujme binární řetězec (41 nul, 18 jedniček):
+00000100110001010000001110100010000010001001000110100001001.
+– Řetězec má 18 sledů (nuly končící 1) s délkami 5, 2, 0, 3, 1, 6, 0, 0, 1, 3, 5, 3, 2, 3, 0, 1, 4, 2.
+Jejich střední hodnota je 2.28.
+– Pravděpodobnost nuly je 41/(41 + 18) ≈ 0.7, což dá 𝑚 = − log 1.7/ log 0.7 = 1.487 = 2
+0.7
+2 = 0.49
+– Sekvence sledů kódovaná Golombovými kódy pro m = 2 jako řetězec 18 kódů:
+1101|100|00|101|01|11100|00|00|01|101|1101|101|100|101|00|01|1100|100
+– Výsledkem je 52-bitový řetězec, který komprimuje původních 59 bitů.
+– Komprese je velmi malá, protože 𝑝 není velké. Řetězec má dokonce čtyři sledy délky 0.
+KKO - Kódování a komprese dat
+72
+m=2
+0: 00
+1: 01
+2: 100
+3: 101
+4: 1100
+5: 1101
+Golomb-Riceovy kódy – příklad komprese délek sledů
+▪ Př. 2: Mějme nyní 94-bitový řetězec
+0000000000100000000010000000100000000000100000000100000000000100000000
+100000001000000000010000000:
+– Je tvořen 85 nulami a 9 jedničkami, takže p = 85/(85 + 9) = 0.9. Nejlepší hodnota m je proto 𝑚 =
+− log 1.9/ log 0.9 = 6.09 = 7. Deset sledů nul má délky 10, 9, 7, 11, 8, 12, 8, 7, 10, 7.
+– Po zakódování Golombovými kódy pro m = 7 dostaneme 47-bitový řetězec
+10100|10011|1000|10101|10010|10110|10010|1000|10100|1000
+– Kompresní faktor je 94/47 = 2.
+▪ Př. 3: Pro řídký binární řetězec tvořený např. 106 nulovými bity, a pouze 100 jedničkami.
+– Pravděpodobnost nuly je 𝑝 = 106 /(106 + 102
+) = 0.9999, a odtud 𝑚 = 6932. Předpokládejme
+zde 101 sledů, každý asi 104 nul dlouhý. Golombův kód 104 pro m = 6932 je dlouhý 14 bitů, takže 101
+sledů se dá komprimovat do 1414 bitů, což dává kompresní faktor 707.
+KKO - Kódování a komprese dat
+73
+
+Variable-length quantity (VLQ)
+▪ Variable-length quantity je univerzální kódování, které používá k reprezentaci celých
+čísel oktety (osmice bitů).
+– Původně bylo kódování navrženo pro standard MIDI, nyní lze nalézt jako BASE-128 v Google Protocol Buffer, ASN.1,
+formátu DWARF, případně .NET funkci BinaryReader/BinaryWriter
+▪ Struktura oktetu:
+– Spodních 7 bitů (Bn
+) je významových, osmý bit (A) určuje, zda-li následuje další VLQ oktet (A=1).
+▪ Příklady:
+– hodnota 254 odpovídá 11111110 binárně, 0xFE hexadecimálně, VLQ: 11111110 00000001 (0xFE 0x01)
+– hodnota 257 odpovídá 00000001 00000001, 0x01 0x01, VLQ: 10000001 00000010 (0x81 0x02)
+– hodnota 65534 odpovídá 11111111 1111110, 0xFF 0xFE, VLQ: 11111110 11111111 00000011 (0xFE 0xFF 0x03)
+KKO - Kódování a komprese dat
+77
+7 6 5 4 3 2 1 0
+- 2
+6 2
+5 2
+4 2
+3 2
+2 2
+1 2
+0
+A0 B0
+7 6 5 4 3 2 1 0
+- 2
+13 2
+12 2
+11 2
+10 2
+9 2
+8 2
+7
+A1 B1
+…
+Eliasovo kódování
+▪ Elias navrhl ve své práci (1975) tři typy prefixových kódů označované jako gama, delta a
+omega. Myšlenkou je opět rozdělit kódovou značku na dvě části:
+– prefix, který kóduje řád hodnoty a
+– sufix, který kóduje hodnotu samotnou.
+▪ Metoda vychází z principu, že pro libovolné kladné číslo 𝑛 existuje takové celé číslo 𝑀,
+že 2
+𝑀 ≤ 𝑛 < 2
+𝑀+1
+a tudíž můžeme 𝑛 reprezentovat pomocí dvojice (𝑀, 𝑅) neboť platí,
+že 𝑛 = 2
+𝑀 + 𝑅.
+– Binárně kódovaná hodnota 𝑅 je maximálně 𝑀 bitů dlouhá.
+▪ Jednotlivá Eliasova kódování se liší způsobem, jakým se určí a kóduje počet bitů 𝑀.
+▪ Jednotlivé varianty Elias definoval pomocí alfa a beta kódování tak, že
+– 𝛼(𝑛) odpovídá unárnímu kódu hodnoty 𝑛 (varianta pro 𝑛 ≥ 0, se symbolem 1 jako oddělovačem) a
+– 𝛽(𝑛) odpovídá binární reprezentaci 𝑛 počínaje nejlevějším jedničkovým bitem a nejméně významovým
+bitem konče, tj. 𝛽 3 = 11, 𝛽 11 = 1011, 𝛽 32 = 100000
+KKO - Kódování a komprese dat
+78
+Eliasovo gama kódování
+▪ Eliasovo gama kódování 𝛾(𝑛) pro kladná celá čísla 𝑛 je definováno takto:
+▪ Nejprve se určí M, jehož hodnota odpovídá délce binární reprezentace 𝛽 𝑛
+– Příklad: pokud 𝑛 = 13, pak 𝑀 = 3 neboť hodnotu 13 lze reprezentovat na čtyřech bitech jako 1101
+▪ Kódovou značku pak tvoří 𝑀 nul (tj. unární kód bez oddělovače) následovaných 𝛽 𝑛
+nebo také 𝛼 𝑀 následované 𝛽 𝑅 (tj. 𝑀 bity 𝛽 𝑛 )
+– Příklad: hodnota 13=23+5 se zakóduje jako 0001101
+▪ Hodnotu 𝑀 lze uložit na 1 + log2 𝑛 bitech a tudíž délka kódové značky je
+𝐿 𝑛 = 2𝑀 − 1 = 2 log2 𝑛 + 1
+▪ Gama kód je optimální pro případy, kdy pravděpodobnost výskytu hodnoty 𝑛 je
+P 𝑛 = 2
+−2 log2 𝑛 −1 ≈ 1/𝑛
+2
+.
+KKO - Kódování a komprese dat
+79
+Eliasovo delta kódování
+▪ Kódovou značku Eliasova delta kódování δ(𝑛) pro kladné celé číslo 𝑛 tvoří 𝛾(𝑀 + 1)
+následované M bity 𝛽 𝑅 .
+– Příklad: 5 = 22+1 => M=2 , R=1 => 𝛾 2 + 1 = 011 𝛽 1 = 01
+▪ Délka kódové značka je 𝐿 𝑛 = 2 log2 log22𝑛 + log2 𝑛 + 1
+▪ Delta kódování je optimální pro případy, kdy P 𝑛 =
+1
+2𝑛 log2 2𝑛 2
+KKO - Kódování a komprese dat
+80 𝑛 = 2
+𝑀 + 𝑅
+1 = 2
+0 + 0 → 𝑀 = 0 → 1
+2 = 2
+1 + 0 → 𝑀 = 1 → 0100
+3 = 2
+1 + 1 → 𝑀 = 1 → 0101
+4 = 2
+2 + 0 → 𝑀 = 2 → 01100
+5 = 2
+2 + 1 → 𝑀 = 2 → 01101
+6 = 2
+2 + 2 → 𝑀 = 2 → 01110
+7 = 2
+2 + 3 → 𝑀 = 2 → 01111
+8 = 2
+3 + 0 → 𝑀 = 3 → 00100000
+9 = 2
+3 + 1 → 𝑀 = 3 → 00100001
+Eliasovo omega kódování
+▪ Konstrukce omega kódu je definována rekurzivně
+▪ Kódování (tvorba kódové značky odzadu):
+1. připoj zezadu bit 0; pokud 𝑛 = 1, kódování ukonči, jinak inicializuj 𝑘 = 𝑛
+2. pokud 𝑘 ≥ 2, připoj zleva binární reprezentaci 𝛽(𝑘), aktualizuj 𝑘 tak, aby odpovídalo počtu přidaných
+bitů zmenšenému o 1, tj. 𝑘 = 𝛽 𝑘 − 1 a opakuj krok č. 2
+▪ Dekódování:
+– Dekodér inicializuje 𝑛 = 1, načte bit a pokud je 1, načte 𝑛 dalších bitů a 𝑛 nastaví na načtenou hodnotu
+▪ Příklad:
+– Číslo 17 je zakódováno jako 0, kterou předchází 5-bitová binární hodnota 10001, před tuto hodnotu je
+přidána 3-bitová hodnota 5-1=4 reprezentovaná pomocí 100, před kterou je 2-bitová hodnota čísla 3-
+1=2 (10). Takže výsledek je 10|100|10001|0.
+KKO - Kódování a komprese dat
+81
+Eliasovo kódování – kódová slova a jejich délky pro různé varianty
+KKO - Kódování a komprese dat
+82
+n a(n) g(n) d(n) W(n) |a(n)| |g(n)| |d(n)| |W(n)|
+1 1 1 1 0 1 1 1 1
+2 01 010 0100 100 2 3 4 3
+3 001 011 0101 110 3 3 4 3
+4 0001 00100 01100 101000 4 5 5 6
+5 00001 00101 01101 101010 5 5 5 6
+6 000001 00110 01110 101100 6 5 5 6
+7 0000001 00111 01111 101110 7 5 5 6
+8 00000001 0001000 00100000 1110000 8 7 8 7
+9 000000001 0001001 00100001 1110010 9 7 8 7
+10 0000000001 0001010 00100010 1110100 10 7 8 7
+100 000000...0001 0000001100100 00111100100 1011011001000 100 13 11 13
+1000 000000...0001 0000000001111101000 0001010111101000 11100111111010000 1000 19 16 17
+10000 000000...0001 000000000000010011100010000 00011100011100010000 111101100111000100000 10000 27 20 21
+100000 000000...0001
+000000000000000011000011010
+100000
+00001000110000110101
+00000
+101001000011000011010
+1000000 100000 33 25 28
+Exponenciální Golombovy kódy
+▪ Exponenciální Golombovy (Teuhola, 1978) kódy produkují kratší kódová slova oproti
+Golombovu kódování, mimo to se jedná o univerzální kódování.
+– Kódovou značku pro celé číslo 𝑛 tvoří dvě části – předpona (unární kód) a přípona (kód pevné délky)
+– Hodnoty jsou rozděleny do skupin, jejichž počet prvků exponenciálně roste (u Golombova kódu je fixní)
+– Počáteční velikost skupiny a počet bitů přípony určuje parametr 𝑘, přičemž počet prvků odpovídá 2
+𝑘
+▪ Příklad pro 𝑘 = 0
+KKO - Kódování a komprese dat
+83
+0
+𝐿𝑠 = 1 𝐿𝑆 = 2
+...
+1 2 3 6 15
+𝐿𝑆 = 3 𝐿𝑆 = 4
+4 5 7 14
+2
+2 − 2 2
+3 − 2 2
+4 − 2 2 2 5 − 2
+1 − 2
+n k=0
+0 1
+1 010
+2 011
+3 00100
+4 00101
+5 00110
+6 00111
+7 0001000
+8 0001001
+9 0001010
+Exponenciální Golombovy kódy
+▪ Exponenciální Golombův kód pro nezáporná celá čísla 𝑛 řádu 𝑘 = 0 odpovídá
+Eliasovu gama kódování hodnoty 𝛾(𝑛 + 1).
+▪ Exponenciální Golombův kód pro nezáporná celá čísla 𝑛 řádu 𝑘 ≥ 1 definuje kódové
+slovo pomocí zřetězení:
+– hodnoty q =
+𝑛
+2
+𝑘
+(celá část po dělení 2k
+, index skupiny) pomocí exponenciálního Golombova kódu
+řádu nula
+– binárně reprezentované hodnoty 𝑟 = 𝑛 − 𝑞2
+𝑘
+(zbytek po celočíselném dělení 2k
+, index v rámci
+skupiny)
+KKO - Kódování a komprese dat
+84
+𝑘 = 0 𝑘 = 1 𝑘 = 2
+Exponenciální Golombovy kódy
+▪ Exp. Golombovo kódování řádu 𝑘 = 0 je použito ve
+standardu H.264/MPEG-4 AVC a H.265 ke kódování celých
+čísel, neboť
+– (i) dovoluje kompresi – méně často se vyskytujícím hodnotám jsou
+přiřazena delší kódová slova (vyšší hodnota = delší slovo)
+– (ii) kódování a dekódování lze snadno realizovat v HW
+– (iii) umožňuje mapovat oboustranné distribuce
+▪ Mapování v H264
+– ue - Unsigned direct mapping, kladná čísla 𝑥 ≥ 0 jsou přímo
+mapována na hodnotu 𝑥 (použito pro typ makrobloku, odkaz na
+index snímku, …)
+– se – Signed mapping, kladná čísla 𝑥 > 0 jsou mapována na liché
+hodnoty 2𝑥 − 1, zatímco záporné čísla 𝑥 ≤ 0 jsou mapována na
+sudé hodnoty −2𝑥 (motion vector difference, delta QP, …)
+– te – Truncated mapping, pokud největší hodnota 𝑥 je 1, pak se
+pošle jeden bit (𝑥ҧ), jinak se použije ue
+– me - Mapped symbols, číslo je mapováno podle jedné ze čtyř
+převodních tabulek
+KKO - Kódování a komprese dat
+85
+Bit
+pattern
+Unsigned
+(ue)
+Signed
+(se)
+1 0 0
+010 1 1
+011 2 -1
+00100 3 2
+00101 4 -2
+00110 5 3
+00111 6 -3
+0001000 7 4
+0001001 8 -4
+0001010 9 5
+0001011 10 -5
+0001100 11 6
+Vlastnosti kódování celých čísel
+▪ Kódování jsou optimální pro následující rozložení pravděpodobnosti
+▪ Pokud použijeme kódování optimální pro 𝑞𝑖 na jinou distribuci (𝑝𝑖
+), bude dle KullbackLeiblerovy divergence nutné použít více bitů na symbol (vzniká redundance)
+KKO - Kódování a komprese dat
+87
+Kódování Pravděpodobnost výskytu hodnoty 𝑛
+Unární 𝑃 𝑛 = 2
+−𝑛
+Golombovo, parametr 𝑚 𝑃 𝑛 = 𝑝
+𝑛 1 − 𝑝 ≈
+2
+𝑚
+2
+𝑛
+𝑚 ≈
+𝑚
+2
+−𝑛
+Eliasovo gama
+(Golombovo exp. 𝑘 = 0)
+P 𝑛 = 2
+−2 log2 𝑛 +1 ≈ 1/𝑛
+2
+Eliasovo delta P 𝑛 =
+1
+2𝑛 log2 2𝑛 2
+Eliasovo omega P 𝑛 ≈
+1
+𝑛 log2(𝑛) log2(log2(𝑛)) …
+Očekávané znalosti
+▪ Teorie
+– Definovat kódování, popsat prefixové kódování, jednoznačně dekódovatelné kódování, umět poznat
+vlastnosti daného kódování (aplikace Kraft-McMillanovy nerovnosti), porozumět vztahu mezi entropií a
+délkou kódových značek, tvorba stromu pro daný kód
+– Umět spočítat entropii prvního řádu, entropii Markovského řetězce prvního řádu
+▪ Kódy
+– Umět zkonstruovat unární kód, Eliasův gama a delta kód, Golombův kód (není třeba znát vztah pro
+výpočet optimálního parametru)
+– Rozlišit, kdy je výhodné použít které kódování
+– Umět aplikovat Eliasův gama kód na MTF a Golombovo kódování na kompresi RLE výstupu
+KKO - Kódování a komprese dat
+88

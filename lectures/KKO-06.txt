@@ -1,0 +1,1488 @@
+KKO Automated synthesis of approximate circuits
+Kódování a komprese dat
+Modely kontextu
+(Context models)
+Zdeněk VAŠÍČEK
+Fakulta informačních technologií, Vysoké učení technické v Brně
+Brno, Czech Republic
+vasicek@fit.vutbr.cz
+KKO - Kódování a komprese dat
+1
+Obsah
+▪ Modely kontextu a obecná statistická metoda komprese dat
+– Definice, princip, parametry, klasifikace modelů
+▪ Modely kontextu s pevným řádem
+– Adaptivní model pracující po bitech
+– Adaptivní model pracující po bytech
+▪ Modely kontextu s proměnným řádem
+– Model pracující po bytech
+▪ PPM (Partial Prediction Matching)
+– Modely pracující po bitech:
+▪ DMC (Dynamic Markov Coding)
+▪ CTW (Context Tree Weighting)
+▪ Mixování kontextů, sekundární estimace symbolů (SSE, ISSE)
+▪ PAQ
+KKO - Kódování a komprese dat
+2
+Model
+▪ Techniky entropického kódování jako je Huffmanovo či aritmetické kódování jsou
+založeny na znalosti pravděpodobnostního rozložení bez kterého se neobejdou.
+▪ Obecná statistická kompresní metoda je složena z modelovacího stupně následovaného
+kódovacím stupněm. Model přiděluje vstupním symbolům pravděpodobnosti a
+kódovací stupeň pak kóduje symboly na základě jejich pravděpodobností.
+– Model může být statický, nebo dynamický (adaptivní).
+– Máme-li k dispozici vhodný model dat, kódování je vyřešený problém (model lze použít k predikci
+dalšího symbolu na vstupu).
+3
+dynamická část
+statická část
+Kodér
+Vstupní tok
+s S
+Výstup
+Model
+(prediktor) {p(x)|xS}
+|w|  -log p(s)
+KKO - Kódování a komprese dat
+Model
+▪ Modelem rozumíme odhad rozložení pravděpodobnosti výskytu dat ve vstupním toku.
+– Model může pracovat nad: bity, byty, slovy, …
+▪ Míra efektivity kodéru záleží na kvalitě pravděpodobnostního modelu.
+– Čím více se model vzdaluje skutečnosti, tím méně je kodér efektivní. Snahou všech pokročilých metod
+komprese je automaticky vytvořit co nejvěrohodnější model.
+– Jak však teoreticky dokázal Kolmogorov, optimální univerzální model neexistuje.
+▪ Většina modelů je založena na jednom ze dvou principů
+– Statistický model: Model přiřadí pravděpodobnosti symbolům textu podle jejich četnosti (počtu) výskytu
+tak, že často se vyskytující symboly dostanou krátké kódy. Statický model používá konstantní
+pravděpodobnosti, zatímco dynamický model upravuje pravděpodobnosti v průběhu komprese.
+– Kontextově orientovaný model: Při přidělování pravděpodobností bere model v úvahu kontext symbolu.
+Protože dekodér nemá k dispozici budoucí text, musí kodér i dekodér omezit kontext na minulý text, tj.
+na symboly, které již vstoupily a byly zpracovány. V praxi je kontext symbolu tvořen N symboly, které jej
+předcházejí. Proto říkáme, že kompresní metoda založená na kontextu používá kontextu symbolu k jeho
+predikci (tj. přidělí mu pravděpodobnost).
+4
+KKO - Kódování a komprese dat
+Řád modelu
+▪ Řádem modelu rozumíme počet symbolů bezprostředně předcházejících právě
+zpracovávaný symbol použitých k určení pravděpodobnostního rozložení
+▪ Model nultého řádu
+– nejjednodušší model, kdy uvažujeme pouze pravděpodobnost výskytu izolovaných symbolů 𝑃(𝑠), kde
+𝑠  Σ jsou jednotlivé symboly vstupní sekvence
+– entropie modelu nultého řádu je definována jako
+ℋ0 𝑇 = −෍
+𝑠∈Σ
+𝑃 𝑠 log2 𝑃 𝑠
+– Příkladem metody pracující na bázi modelu nultého řádu je Huffmanův kód
+▪ Modely vyššího řádu
+– v přirozeném jazyce je velká korelace mezi sousedními symboly (viz následující slide), vyšší řád proto
+bude dosahovat lepšího kompresního poměru
+– můžeme lépe predikovat následující symbol; čím vyšší úspěšnost predikce, tím více klesá entropie dat a
+tím pádem můžeme dosáhnout lepšího kompresního poměru
+5
+KKO - Kódování a komprese dat
+Model vyššího řádu
+▪ Model prvního řádu
+– vede na podmíněnou pravděpodobnost.
+– entropie modelu prvního řádu odpovídá podmíněné entropii H(S|C) uvažujeme-li abecedy S a C
+ℋ 𝑆|𝐶 = −෍
+𝑠∈𝑆
+෍
+𝑐∈C
+𝑃 𝑠|𝑐 𝑃 𝑐 log2 𝑃 𝑠|𝑐
+– Podmíněnou entropii lze chápat jako množství nejistoty, které máme o S, známe-li náhodnou veličinu C.
+– Obecně platí, že jakákoliv dodatečná informace o C redukuje entropii S, tj. platí
+ℋ 𝑆|𝐶 ≤ ℋ 𝑆
+▪ Příklad: anglicky psaný text
+– v přirozeném jazyce P('H') = 5%, znak P('T') = 9%
+– pokud je však v textu znak T, s více než 30% pravděpodobností bude následující znak H (digram TH je
+velice běžný) P('H'|'T')=30%. Naopak, pokud je v textu znak X, pravděpodobnost, že bude následovat H
+je velice nízká, tj. P('H'|'X') → 0
+– pokud je v textu znak Q, je více než 99% pravděpodobnost, že bude následovat znak U. Přitom
+pravděpodobnost výskytu U je pouze 2%.
+– vytvoříme-li vhodný model dat, který popisuje tuto skutečnost, jsme schopni poměrně efektivně
+kódovat anglicky psaný text
+6
+KKO - Kódování a komprese dat
+Model vyššího řádu
+▪ Používat modely vyššího řádu se jeví jako velmi výhodné. V praxi však narazíme na řadu
+omezení a je proto nutné volit rozumný kompromis
+– s rostoucím řádem vzrůstají typicky paměťové nároky
+– s rostoucím řádem vzrůstá počet výskytů, které jsme viděli pouze jednou nebo vůbec
+8
+KKO - Kódování a komprese dat
+Příklad: Nechť 𝑁 = 2, uvažujme statický model. Po přečtení a analýze obrovského množství anglických
+textů jsme dosud nenašli trigram qqz, buňka odpovídající qqz v tabulce frekvencí trigramů bude obsahovat
+nulu. Pokud takový model použijeme a na vstupu se objeví qqz, budeme mít problém.
+Příklad: Předpokládejme 8-bitové kódy ASCII, pak velikost abecedy je 256 symbolů.
+Nechť 𝑁 = 2, pak existuje 256𝑁 = 2562 = 65536 kontextů 2. řádu, 2563 = 16 777 216 kontextů 3. řádu
+a 2564 = 4 294 967 296 kontextů 4. řádu.
+Problém s nulovými pravděpodobnostmi (zero frequency problem)
+▪ Entropický kodér se neumí vypořádat s nulovými pravděpodobnostmi
+– Aritmetický kodér požaduje, aby všechny symboly měly nenulovou pravděpodobnost jinak bychom
+získali nekonečně dlouhou sekvenci bitů.
+– Huffmanova metoda kombinuje dva symboly s nízkou pravděpodobností do jednoho s vyšší
+pravděpodobností. Když se zkombinují dva symboly a jeden z nich má nulovou pravděpodobnost,
+výsledný symbol bude mít stejnou pravděpodobnost jako nenulový → nejednoznačně dekódovatelný
+kód.
+▪ Možná řešení (žádné nemá teoretické opodstatnění)
+– Použít pseudopočet – přidat kladnou hodnotu 𝛼 ke každému počtu výskytů. Typicky 𝛼 = 1.
+Předpokládáme, že se každý symbol vyskytl alespoň 𝛼 – krát. Celkový počet výskytu symbolů se zvýší.
+Tzn. každý i-tý (𝑖 ≥ 0) nově nalezený symbol bude mít predikovánu pravděpodobnost 𝛼/(𝑖 + 𝛼|Σ|).
+– Přidat escape symbol před každý případ, kdy narazíme na první výskyt symbolu. Nový symbol je
+zakódován s uniformní pravděpodobností výskytu vzhledem k doposud nenalezeným symbolům Σ
+(tj. kódem pevné délky). Escape symbol používá předem stanovenou pravděpodobnost – typicky se
+přidá k celkovému počtu výskytů 1, která se rozdělí rovnoměrně mezi všechny symboly. Tím se přidělí
+velmi malá pravděpodobnost čemukoliv, co nebylo při analýze nalezeno.
+9
+KKO - Kódování a komprese dat
+Druhy modelů – I/II
+▪ Statický model
+– fixní model, který není odvozen z aktuálně zpracovávaného vstupního toku a který je znám předem
+▪ Semistatický / semiadaptivní model
+– využívá se znalosti četnosti výskytu jednotlivých symbolů, které se nachází / nacházely ve vstupním toku
+– semistatický model je přizpůsoben zpracovávaným datům a je součástí výstupního toku (tj. komprimovaných
+dat) tak, aby měl dekodér možnost data dekomprimovat (hlavní nevýhoda tohoto přístupu zejména v případě
+komprese krátkých dat)
+▪ Adaptivní (dynamický) model
+– model, který se mění v průběhu komprese;
+– od určitého okamžiku se model stává funkcí již zpracované (zkomprimované) části vstupního toku a tudíž jej
+není zapotřebí ukládat do zkomprimovaného výstupu
+– model není nutné ukládat na výstup, čímž ušetříme místo. Avšak z důvodů pomalé adaptace může tento
+model dávat horší ve výsledku horší kompresní poměr než statický / semistatický model
+10
+KKO - Kódování a komprese dat
+Příklad: model četnosti výskytu symbolů (znaků, bigramů, trigramů) anglické abecedy získaný analýzou korpusu
+anglických textů
+Příklad: Huffmanův kodér analyzuje vstupní blok a vypočítá distribuci pravděpodobnosti jednotlivých symbolů, uloží
+ji do výstupního toku současně se symboly zakódovanými Huffmanovým kódem
+Příklad: adaptivního modelu nultého řádu: můžeme začít komprimovat data s využitím uniformního rozložení
+pravděpodobnosti a s každým zpracovaným symbolem distribuci poupravit na základě četnosti výskytů jednotlivých
+symbolů v již zpracovaném textu; nevýhoda: pomalá adaptace na vstupní data
+Model
+statický semiadaptivní adaptivní
+Druhy modelů – II/II
+▪ Model s pevným řádem
+– Řád modelu je daný předem a v průběhu komprese se neměnní.
+– Model může být statický, semi-adaptivní nebo adaptivní
+– Model může pracovat po bytech, bitech nebo kombinaci obou
+▪ Model s proměnným řádem
+– Řád modelu se může měnit s každým načteným symbolem
+– Model je typicky adaptivní
+Model
+s pevným
+řádem
+s proměnným
+řádem
+Model
+přímý
+kontext - predikce
+nepřímý
+kontext – stav – predikce
+KKO - Kódování a komprese dat
+12
+Příklad: Adaptivní model s nultým řádem pracující po bytech je nejjednodušším z modelů kontextu.
+Příklad: Sběr statistik pro různé řády současně a následné použití nejdelšího shodného kontextu, o kterém něco
+víme.
+Příklad: statický model nultého řádu pracující po znacích
+▪ Příklad: uvažujme řetězec S=badada, Σ = {𝑎, 𝑏, 𝑐, 𝑑} a model nultého řádu.
+▪ Statický model:
+– jednotlivé symboly budou predikovány s předem danou pravděpodobností bez ohledu na četnost
+výskytu v S.
+▪ Semi-adaptivní model:
+– nejprve se analyzuje S, určí pravděpodobnosti a ty následně použijí
+13
+b a d a d a
+0.00142 0.00816 0.00425 0.00816 0.00425 0.00816
+https://en.wikipedia.org/wiki/Letter_frequency
+b a d a d a
+1/6
+0.166
+3/6
+0.5
+2/6
+0.333
+3/6
+0.5
+2/6
+0.333
+3/6
+0.5
+s S Model
+(prediktor)
+{p(x)|xS}
+KKO - Kódování a komprese dat
+Příklad: statický model nultého řádu pracující po znacích
+▪ Semi-adaptivní model:
+▪ Teoretická délka výstupu:
+– 𝐿 = − log2
+1
+6
++ log2
+3
+6
++ log2
+2
+6
++ log2
+3
+6
++ log2
+2
+6
++ log2
+3
+6
+= 8.75 bitů
+14
+b a d a d a
+1/6
+0.166
+3/6
+0.5
+2/6
+0.333
+3/6
+0.5
+2/6
+0.333
+3/6
+0.5
+KKO - Kódování a komprese dat
+Adaptivní model nultého řádu pracující po znacích
+▪ Princip: při dekódování i-tého znaku (𝑖 ≥ 0) už známe četnosti znaků v S[0..i-1]. Tyto
+četnosti můžeme použít pro zakódování i-tého znaku.
+– Četnosti není nutné přenášet do dekodéru.
+– Model obsahuje tabulku, která každému znaku přiřazuje pravděpodobnost výskytu (stačí ukládat pouze
+počet výskytů daného znaku).
+▪ S každým načteným znakem je nutné provést dva kroky:
+– vyhledání četnosti v tabulce a
+– aktualizaci tabulky
+▪ Příklad (bez uvažování zero-frequency problem):
+– Předpokládejme, že zatím vstoupilo a bylo zakódováno 1217 symbolů a 34 z nich bylo písmeno q.
+– Je-li následující symbol q, dostane pravděpodobnost 34/1217 a jeho počet se zvýší o 1.
+– Když se narazí na q příště, tj. v 𝑖-tém kroku, dostane přidělenu pravděpodobnost 35/𝑖.
+15
+𝑝(𝑠𝑖) =
+𝑐𝑜𝑢𝑛𝑡 𝑠𝑖
+𝑖
+KKO - Kódování a komprese dat
+Příklad: model nultého řádu pracující po znacích
+▪ Model: Adaptivní model nultého řádu využívající pseudopočet
+– 𝛼 = 1,
+– pro 𝑖-tý (𝑖 ≥ 0) nově příchozí znak se použije 𝑝 𝑠𝑖 =
+1
+𝑖+ Σ
+, jinak 𝑝(𝑠𝑖) =
+𝑐𝑜𝑢𝑛𝑡(𝑠𝑖
+)+1
+𝑖+|Σ|
+▪ Př.: Uvažujme řetězec S=badada, Σ = {𝑎, 𝑏, 𝑐, 𝑑} a uvedený model.
+16
+b
+a
+d
+a
+d
+a
+1/4
+1/5
+1/6
+2/7
+2/8
+3/9
+ne
+ne
+ne
+ano
+ano
+ano
+pravděpodobnost
+přiřazená symbolu
+p(s)
+symbol
+již viděn?
+s S Model
+(prediktor)
+{p(s)|sS}
+aktualizace p(s)
+Σ count
+s0
+s5
+KKO - Kódování a komprese dat
+Příklad: model nultého řádu pracující po znacích
+▪ Model: Adaptivní model nultého řádu využívající escape symbol
+– 𝑛𝑒𝑠𝑐𝑎𝑝𝑒 = 1,
+– pro 𝑖-tý (𝑖 ≥ 1) nově příchozí znak se použije 𝑝 𝑠𝑖 =
+1
+𝑖
+
+1
+|Σ∖Σ𝑠𝑒𝑒𝑛|
+, jinak 𝑝(𝑠𝑖) =
+𝑐𝑜𝑢𝑛𝑡 𝑠𝑖
+𝑖
+▪ Př.: Uvažujme řetězec S=badada, Σ = {𝑎, 𝑏, 𝑐, 𝑑} a uvedený model.
+17
+b
+a
+d
+a
+d
+a
+1/1  1/4
+1/2  1/3
+1/3  1/2
+1/4
+1/5
+2/6
+ne (0x)
+ne (1x)
+ne (2x)
+ano (3x)
+ano (3x)
+ano (3x)
+pravděpodobnost
+přiřazená symbolu
+p(s)
+symbol již viděn?
+(viděno symbolů |Σ𝑠𝑒𝑒𝑛|)
+s S Model
+(prediktor)
+{p(s)|sS}
+aktualizace p(s)
+Σ count
+s1
+s6
+KKO - Kódování a komprese dat
+Očekávaná délka výstupu
+▪ Adaptivní model nultého řádu využívající pseudopočet
+𝐿 = − log2
+1
+4
++ log2
+1
+5
++ log2
+1
+6
++ log2
+2
+7
++ log2
+3
+8
++ log2
+2
+9
+= 12.3 bitů = 2.05 bps
+▪ Adaptivní model nultého řádu využívající escape symbol
+𝐿 = − log2
+1
+4
++ log2
+1
+6
++ log2
+1
+6
++ log2
+1
+4
++ log2
+1
+5
++ log2
+2
+6
+= 13.1 bitů = 2.18 bps
+18
+b a d a d a
+1/4
+0.25
+1/5
+0.2
+1/6
+0.166
+2/7
+0.285
+3/8
+0.375
+2/9
+0.222
+KKO - Kódování a komprese dat
+b a d a d a
+1/4
+0.25
+1/6
+0.166
+1/6
+0.166
+1/4
+0.25
+1/5
+0.2
+2/6
+0.333
+Kontextové modely
+▪ V praxi se typicky bere v úvahu pravděpodobnost výskytu symbolu v daném kontextu
+(digram, trigram, apod.), tj. model uvažuje podmíněné rozd. pravděpodobnosti p(s|C)
+▪ Kontextový model
+– využívá se faktu, že použitím kontextu lze snížit entropii dalšího symbolu, což nám umožní zakódovat
+symbol pomocí méně bitů
+– kontext je použit k predikci dalšího symbolu, predikce a symbol se zašle do kodéru, který následně
+aktualizuje model podle symbolu, který právě zakódoval.
+19
+Kodér
+Vstupní tok
+Cs S
+Model Výstup
+(prediktor)
+{p(s|C) | CsS}
+KKO - Kódování a komprese dat
+Kontextové modely – motivace
+▪ Uvažujme na vstupu textový řetězec osmi znaků a kontext prvního řádu (N=1)
+– Pokud bychom kódovali znak h samostatně, tak p(h)=1/8, tj. dostal by přiřazen kód délky 3 bity
+– Pokud budeme uvažovat kontext řádu 1, pak s pravd. 1/2 se za t vyskytuje h nebo e => k zakódování stačí
+pouze jeden bit
+– Implementace: udržovat tabulku pravděpodobností pro každý kontext
+KKO - Kódování a komprese dat
+20
+t h e t e x t
+t p(h)=1/2, p(e)=1/2
+h p(e)=1
+e p(' ')=1/2, p(x)=1/2
+p(t)=1
+x p(t)=1
+Kontextové modely – volba řádu
+▪ Teoreticky čím je N větší, tím je lepší odhad pravděpodobnosti (predikce)
+▪ Velké hodnoty N však mají řadu praktických nevýhod
+1. Počet možných kontextů roste exponenciálně s N => značné paměťové nároky
+2. Když zakódujeme symbol na základě 10 000 jej předcházejících symbolů, jak zakódujeme prvních
+10 000 symbolů vstupního toku? Prosté kódy ASCII? => snížení celkové komprese.
+3. Velmi dlouhý kontext udržuje informaci o povaze starých dat avšak, vstupní řetězce typicky obsahují v
+různých částech rozdílná rozdělení symbolů. => Lepší komprese se proto dosáhne, když model přikládá
+menší význam informacím získaným ze starých dat a větší váhu čerstvým nedávným datům. Takového
+efektu dosáhneme krátkým kontextem.
+▪ Důsledek: v praxi se používají relativně krátké kontexty, v rozmezí od 2 do 10
+– Každý praktický algoritmus vyžaduje pečlivě navrženou datovou strukturu, která umožňuje rychlé
+prohledávání a snadnou aktualizaci, přičemž udržuje mnoho tisíc symbolů a řetězců
+KKO - Kódování a komprese dat
+21
+Adaptivní model s pevným řádem (pracující po znacích)
+▪ Adaptivní model s pevným řádem (pracující po 8-bitových znacích):
+– vstupem do modelu řádu 𝑁 je posledních 𝑁 bytů (symbolů, bitů), které ukazují do tabulky, která slouží k
+určení rozdělení pravděpodobnosti pro příští symbol.
+– pro každý kontext je v tabulce modelu uchováván počet výskytů daného symbolu
+▪ Kód kodéru
+– Ve fázi aktualizace, kdy je znám predikovaný symbol se tabulka aktualizuje zvýšením pravděpodobnosti
+případu, že se opět objeví stejný kontext.
+22
+int count[CONTEXT_SIZE][256] = {{0}};
+const int CONTEXT_SIZE = 1 << (N*8); // pro řád N
+update(char c) { ++count[context][c]; context = (context << 8 | c) % CONTEXT_SIZE; }
+int context = 0; // inicializace (kontext C)
+compress(char c)
+{ encode(count[context], c); // predikce a zakódování (aritm. kodér)
+update(c); // aktualizace
+}
+KKO - Kódování a komprese dat
+Adaptivní model s pevným řádem (pracující po znacích)
+▪ Adaptivní model s pevným řádem (pracující po 8-bitových znacích):
+– vstupem do modelu řádu 𝑁 je posledních 𝑁 bytů (symbolů, bitů), které ukazují do tabulky, která slouží k
+určení rozdělení pravděpodobnosti pro příští symbol.
+– pro každý kontext je v tabulce modelu uchováván počet výskytů daného symbolu
+▪ Kód dekodéru
+23
+int count[CONTEXT_SIZE][256] = {{0}};
+const int CONTEXT_SIZE = 1 << (N*8); // pro řád N
+int context = 0; // inicializace (kontext C)
+char decompress()
+{ char c = decode(count[context]);
+update(c);
+return c;
+}
+update(char c) { ++count[context][c]; context = (context << 8 | c) % CONTEXT_SIZE; }
+KKO - Kódování a komprese dat
+Adaptivní model s pevným řádem (pracující po znacích)
+▪ Princip modelu
+– Model obsahuje tabulku kontextů count[]. V případě bytů má tabulka kontextů 𝑁 × 256 položek.
+– Predikcí pro každý symbol je počet pro tento symbol podělený celkovým počtem výskytů symbolu v
+daném kontextu.
+– Aritmetický kodér kóduje v každém okamžiku jeden byte c, do aritmetického kodéru se předá pole počtů
+pro daný kontext. Při kompresi se předá také kódovaný byte. Při dekompresi se vrací dekódovaný byte.
+– Uvedený adaptivní model kontextu řádu 𝑁 defacto udržuje 256 oddělených modelů nultého řádu. Je-li S
+vstupní tok, pak každý i-tý symbol si toku je zakódován pomocí modelu pro kontext S[i-n:i-1].
+▪ Praktické problémy, které je nutné řešit:
+– Vhodná volba řádu adaptivního modelu: příliš malé 𝑁 nedává dobrý kompresní poměr. Příliš velké 𝑁
+vede na špatný kompresní poměr na začátku. => prediction by partial matching (PPM)
+– Omezený počet bitů jednotlivých položek tabulky může způsobit přetečení => potřeba škálování
+– Velikost tabulky roste exponenciálně s 𝑁 => nahradit kontext výsledkem hash funkce
+24
+KKO - Kódování a komprese dat
+const int CONTEXT_SIZE = 1 << (N*k); // k je počet bitů hash na jeden byte, k = 5
+...
+context = (context * (3 << k) + c) % CONTEXT_SIZE; // update paměti kontextu
+Příklad: model prvního řádu pracující po znacích
+▪ Příklad: uvažujme řetězec S=badadabada, Σ = {𝑎, 𝑏, 𝑐, 𝑑} a model prvního řádu.
+▪ Semi-adaptivní model:
+– nejprve se analyzuje S, určí všechny podmíněné pravděpodobnosti
+– následně model použijeme (pozor na první znak)
+26
+a b c d
+a 0/4 1/4 0/4 3/4
+b 2/2 0/2 0/2 0/2
+c 0/0 0/0 0/0 0/0
+d 3/3 0/3 0/3 0/3
+xs S Model
+(prediktor)
+{p(s|x)|sS}
+b a d a d a b a d a
+1/4 2/2 3/4 3/3 3/4 3/3 1/4 2/2 3/4 3/3
+x
+s
+KKO - Kódování a komprese dat
+Příklad: model prvního řádu pracující po znacích
+▪ Model: Adaptivní model využívající pseudopočet
+– 𝛼 = 1, pro 𝑖-tý (𝑖 ≥ 0) nově příchozí znak kontextu 𝑥 se použije 𝑝(𝑠𝑖
+|𝑥) =
+1
+𝑖+|Σ|
+, jinak 𝑝(𝑠𝑖
+|𝑥) =
+𝑐𝑜𝑢𝑛𝑡(𝑠𝑖
+|𝑥)+1
+𝑖+|Σ|
+▪ Příklad: uvažujme řetězec S=badadabada, Σ = {𝑎, 𝑏, 𝑐, 𝑑} a model prvního řádu.
+27
+a b c d
+a 1 1→2→3
+b 1→2
+c
+d 1→2
+x
+s
+b
+a
+d
+a
+d
+a
+1/4
+1/4
+1/4
+1/4
+2/5
+2/5
+ne
+ne
+ne
+ne
+ano
+ano
+p(s|x) již viděno v kontextu?
+xs S Model
+(prediktor)
+{p(s|x)|sS}
+aktualizace p(s|x)
+b
+a
+d
+a
+x s
+d
+a b 1/6 ne
+a
+d
+b
+a
+2/5 ano
+3/7 ano
+-
+KKO - Kódování a komprese dat
+𝑖 = 1
+𝑖 = 1
+𝑖 = 1
+𝑖 = 2
+Příklad: s = badada, |s| = 6
+▪ Adaptivní model nultého řádu
+– pseudopočet L = 2.05 bps, escape symbol L = 2.18 bps
+▪ Adaptivní model prvního řádu využívající pseudopočet
+𝐿 = − log2
+1
+4
++ log2
+1
+4
++ log2
+1
+4
++ log2
+1
+4
++ log2
+2
+5
++ log2
+2
+5
+= 10.64 bitů = 1.77 bps
+▪ Adaptivní model prvního řádu využívající escape symbol
+𝐿 = − log2
+1
+4
++ log2
+1
+4
++ log2
+1
+4
++ log2
+1
+4
++ log2
+1
+2
++ log2
+1
+2
+= 10.0 bitů = 1.67 bps
+28
+KKO - Kódování a komprese dat
+b a d a d a
+p(b)
+1/4
+0.25
+p(a|b)
+1/4
+0.25
+p(d|a)
+1/4
+0.25
+p(a|d)
+1/4
+0.25
+p(d|a)
+2/5
+0.4
+p(a|d)
+2/5
+0.4
+b a d a d a
+p(E)p(b)
+1·1/4
+0.25
+p(E|b)p(a|b)
+1·1/4
+0.25
+p(E|a)p(d|a)
+1·1/4
+0.25
+p(E|d)p(a|d)
+1·1/4
+0.25
+p(d|a)
+1/2
+0.5
+p(a|d)
+1/2
+0.5
+Příklad: s = badadadadadadadabada, |s| = 20
+▪ Adaptivní model nultého řádu
+– pseudopočet L = 33.77 bitů = 1.69 bps
+– escape symbol L = 34.89 bitů = 1.74 bps
+▪ Adaptivní model prvního řádu
+– pseudopočet L = 23.64 bitů = 1.18 bps
+– escape symbol L = 19.75 bitů = 0.99 bps
+▪ p(b)=2/20, p(a)=10/20, p(d)=8/20
+– pomocí HC nejlépe L = 10x1+8x2+2x2 = 30 bitů
+KKO - Kódování a komprese dat
+29
+Adaptivní model s pevným řádem pracující po bitech
+▪ Adaptivní model s pevným řádem (pracující bitech):
+– založen na myšlence kódovat bit po bitu s využitím již zakódovaných bitů aktuálního symbolu jako
+doplňujícího kontextu bytový kontext + bitový kontext => predikce
+– principiálně musí být pro každou dvojici kontext + bitový kontext (hodnota 1 – 255) v tabulce modelu
+uchováván počet výskytů jedničkového bitu a celkový počet bitů. Predikcí potom je poměr těchto dvou
+hodnot. To je však nevýhodné (operace dělení je pomalá). Řešení: uchovávat přímo predikci
+– počítadlo aktualizací slouží k přizpůsobení rychlosti aktualizace hodnot. Pokud počítadlo omezíme max.
+hodnotou, dostaneme adaptivní model. Jinak dostáváme model stacionární.
+30
+struct Model {
+double prediction; // určuje pravd. (hodnota mezi 0 and 1), že další bit bude 1
+int count; // počítadlo aktualizací
+Model(): prediction(0.5), count(0) {}
+};
+Model model[CONTEXT_SIZE][256];
+const int CONTEXT_SIZE = 1 << (N*8); // řád modelu je N
+KKO - Kódování a komprese dat
+Adaptivní model s pevným řádem pracující po bitech
+▪ Adaptivní model s pevným řádem (pracující bitech):
+– během aktualizace se určí chyba predikce (bit - m.prediction) a upraví se m.prediction v opačném
+poměru vzhledem k počítadlu. Současně se inkrementuje počítadlo dokud nenarazíme na LIMIT.
+V tom okamžiku se model přepíná ze stacionárního na adaptivní.
+– DELTA and LIMIT jsou parametry, kterými lze ovlivnit chování modelu. Velká hodnota LIMIT je vhodná
+pro stacionární data. Menší hodnota je vhodnější pro smíšená data. Hodnota DELTA je kritická pouze
+pokud velikost kódovaných dat je malá. Pokud je DELTA 1, pak sekvence nulových bitů vede na predikci
+1/2, 1/4, 1/6, 1/8, 1/10.
+– V praxi se používá fixed point reprezentace a dělení se nahrazuje lookup tabulkou
+31
+const double DELTA = 0.5; //poč. stav
+const int LIMIT = 255;
+void update(int bit, Model& m) {
+if (m.count < LIMIT) ++m.count;
+m.prediction += (bit - m.prediction) / (m.count + DELTA);
+}
+KKO - Kódování a komprese dat
+Adaptivní model s pevným řádem pracující po bitech
+▪ Adaptivní model s pevným řádem (pracující bitech):
+– vstupní tok se načítá po 8-bitových znacích, každý znak je následně kódován po bitech počínaje MSB a
+konče LSB. Již zakódované bity aktuálního znaku tvoří kontext. Ten nabývá hodnot 1 až 255.
+– Příklad: pokud c = 00011100, pak kontext nabývá postupně hodnot 1, 10, 100, 1000, 10001, 100011,
+1000111, 10001110
+32
+void compress(char c) {
+for (int i=7; i>=0; --i) {
+int bit_context = c+256 >> i+1; // bitový kontext
+int bit = (c >> i) & 1;
+encode(bit, model[context][bit_context].prediction);
+update(bit, model[context][bit_context]);
+}
+context = (context << 8 | c) % CONTEXT_SIZE;
+}
+KKO - Kódování a komprese dat
+
+Adaptivní model s pevným řádem pracující po bitech
+▪ Adaptivní model s pevným řádem (pracující bitech):
+– dekomprese probíhá obdobně jako komprese
+33
+char decompress() {
+int c; // bitový kontext
+int bit;
+for (c = 1; c < 256; c = c << 1 + bit) {
+bit = decode(model[context][c].prediction);
+update(bit, model[context][c]);
+}
+c -= 256; // dekódovaný znak
+context = (context << 8 | c) % CONTEXT_SIZE;
+return c;
+}
+KKO - Kódování a komprese dat
+▪ Vzrůstající řád modelu pevného řádu vede na zvýšení kompresní účinnosti až do
+určitého bodu (pro korpus Calgary řád 3).
+– Od tohoto bodu se komprese zhoršuje, protože mnoho kontextů vyššího řádu se vidí poprvé a není tak
+možné efektivně dělat predikci.
+▪ Jednou z možností, jak problém překonat, je přejít na model s proměnným řádem
+– Sbírat statistiky pro různé řády současně a pak použít nejdelší shodný kontext, o kterém něco víme.
+▪ Tento princip je použit u následujících metod:
+– PPM (Prediction by Partial Matching) pro predikce na bytové úrovni
+– DMC (Dynamic Markov Compression) pro predikce na bitové úrovni
+– CTW (Context Tree Weighting) kombinuje oba přístupy
+Modely s proměnným řádem 38
+KKO - Kódování a komprese dat
+PPM (prediction by partial matching)
+▪ PPM (Cleary a Witten 1984) je nejznámější kontextovou metodou vyššího řádu, která
+používá řetězec symbolů v nezkomprimovaném toku dat k predikci dalšího symbolu.
+▪ Myšlenkou PPM je vyhnout se nulovým pravděpodobnostem výskytu tak, že snížíme řád
+kontextu
+– PPM se snaží používat menší a menší části kontextu 𝐶.
+– V případě, kdy se nepodařilo nalézt symbol 𝑆 pro daný kontext 𝐶 řádu 𝑁 vyšle PPM kodér speciální
+značku, která způsobí přepnutí kodéru i dekodéru na řád 𝑁 − 1. Následně se pokusí nalézt kratší
+řetězec. Pokud ani tehdy neuspěje, zkusí se opětovně snížit řád. Pokud se nenalezne 𝑆 ani pro kontext
+řádu 0, pak je nutné zapsat na výstup nekomprimovaný znak 𝑆.
+▪ Místo toho abychom používali jeden model řádu 𝑁, používáme defacto sekvenci 𝑁
+modelů, které nám pomohou určit podmíněnou pravděpodobnost
+– p(symbol | předchozích N symbolů), p(symbol | předchozích N-1 symbolů), …, p(symbol | předchozí
+symbol), p(symbol)
+39
+KKO - Kódování a komprese dat
+Varianta PPMC (Mofat, 1990)
+▪ Způsob přidělení pravděpodobnosti symbolu změny (ESC) může být implementován
+různě.
+– V případě PPMC se každý kontext uloží do tabulky do samostatné skupiny včetně symbolu ESC
+generovaného z důvodu snížení řádu kontextu.
+▪ Pravděpodobnost výskytu symbolu 𝑠 ∈ Σ v daném kontextu 𝑝 𝑠 𝑐𝑜𝑛𝑡𝑒𝑥𝑡) =
+𝑓𝑠
+𝑡+𝑘
+,
+pravděpodobnost ESC symbolu 𝑝 𝐸𝑆𝐶 𝑐𝑜𝑛𝑡𝑒𝑥𝑡) =
+𝑘
+𝑡+𝑘
+– 𝑓𝑠
+je počet výskytů symbolu 𝑠 v daném kontextu
+– 𝑡 je celkový počet symbolů viděných doposud v daném kontextu
+– 𝑘 je počet různých symbolů viděných doposud v daném kontextu
+▪ Algoritmus
+– je-li v modelu p(s|context), použije se tato pravděpodobnost, jinak
+– se pravděpodobnost odhadne tak, že se vyšle p(ESC|context) a
+sníží se řád kontextu.
+– Předchozí kroky se opakují tak dlouho, než je dosažen řád -1, kdy
+je použito uniformní rozdělení pravděpodobnosti.
+KKO - Kódování a komprese dat
+42
+Feregrino: High performance PPMC compression algorithm, 2003𝑝(𝐸𝑆𝐶|′𝑡ℎ′) = 6/101 = 0.059
+𝑝(′𝑢′|′ℎ′) = 0.009
+′𝑢
+′
+| ′𝑡ℎ′
+Varianta PPMC (Mofat, 1990)
+▪ Uvažujme řetězec S=assanissimassa, Σ = {𝑎, 𝑖, 𝑛, 𝑚, 𝑠}, který již byl zakódován a
+kontextový model druhého řádu. Aktuální kontext „sa“ a další symbol je “s”
+– “sa” následované “s” se zatím nevyskytlo, vyšleme do aritmetického kodéru symbol ESC
+spolu s pravděpodobností 1/2, kterou predikuje kontext “sa” řádu 2. K zakódování ESC je
+zapotřebí 1 bit.
+– Po přepnutí na řád 1 se aktuální kontext změní na “a”, přičemž “a” následované “s” bylo
+viděno a má nyní přidělenou pravděpodobnost 2/5. Proto se s pošle do aritmetického kodéru
+k zakódování s pravděpodobností 2/5, což produkuje dalších 1,32 bitů.
+– K zakódování “s” je tedy zapotřebí celkem 1 + 1,32 = 2,32 bitů.
+▪ Zavedením tzv. vyloučení (lazy exclusion) je možné zvýšit kompresní poměr
+– Když kodér PPM přepne z vyššího řádu na nižší, může použít informace ve vyšším řádu k
+vyloučení některých případů řádu nižšího, o kterých se ví, že jsou nemožné.
+– Skutečnost, že “sa” se již vyskytlo, následované “n” implikuje, že aktuální symbol nemůže být
+“n” (kdyby bylo, bylo by zakódováno v řádu 2).
+– Kodér tak může vyloučit případ “a” následovaného “n” v kontextech řádu 1 (můžeme říct, že
+není zapotřebí rezervovat prostor pro pravděpodobnost tohoto případu, protože není
+možný). Tím se sníží celková pravděpodobnost skupiny řádu 1 „a→“ z 5 na 4, což zvýší
+pravděpodobnost, přidělenou “s” z 2/5 na 2/4.
+– Na základě naší znalosti z řádu 2 se může “s” nyní zakódovat pomocí – log2 (2/4) = 1 bitu,
+namísto 1,32 bitů (to dá celkem 2 bity, protože ESC rovněž potřebuje 1 bit).
+KKO - Kódování a komprese dat
+43
+𝑛 | 𝑠𝑎 1 1/2
+𝐸𝑆𝐶 | 𝑠𝑎 1 1/2
+𝑠 | 𝑎 2 2/5
+𝐸𝑆𝐶 | 𝑎 2 2/5
+𝑛 | 𝑎 1 1/5
+𝑠 | 𝑎 2 2/4
+𝐸𝑆𝐶 | 𝑎 2 2/4
+𝑛 | 𝑎 1 1/5
+DMC (Dynamic Markov Compression)
+▪ Metoda DMC je adaptivní metoda (Cormack, Horspool 1987) založená na dynamické
+konstrukci Markovova modelu. Používá se přímý kontextový model, který je
+konstruován na základě dat, která přichází do kodéru.
+▪ Příklad: Markovův model prvního řádu (𝑝(𝑥|𝑦) kde 𝑥, 𝑦 Σ ) pro abecedu tvořenou
+dvěma symboly Σ = {0,1}
+▪ Markovův model je acyklický orientovaný graf, jehož hranám jsou přiřazeny
+pravděpodobnosti.
+▪ Dynamickou tvorbu modelu lze rozdělit na dvě podúlohy:
+– přiřazení pravděpodobnosti hranám
+– tvorba stavového grafu
+45
+KKO - Kódování a komprese dat
+DMC – princip přiřazení pravděpodobnosti hranám
+▪ Princip přiřazení pravděpodobnosti hranám
+– Předpokládejme, že máme k dispozici stavový graf obsahující jednotlivé přechody.
+– Přiřazení pravděpodobnosti můžeme pak založit na počítadle provedení přechodů.
+– U každého stavu můžeme mít dvě počítadla:
+▪ n0 je počet provedení přechodu 0,
+▪ n1 počet provedení přechodu 1.
+Potom pravd. přechodu můžeme určit jako
+– Abychom se vyhnuli nulovým pravděpodobnostem lze aplikovat pseudopočet
+(použít malou aditivní konstantu c)
+46
+KKO - Kódování a komprese dat
+DMC – princip tvorby stavového grafu
+▪ Princip tvorby stavového grafu
+– stavový graf je založen na tzv. klonování uzlů, jehož cílem je modifikovat strukturu tak, aby se
+automaticky naučila modelovat kontext
+– Příklad: předpokládejme, že jsme v určitém bodě zkonstruovali následující graf sestávající z pěti stavů
+▪ Model zachycuje situaci, že je vysoce pravděpodobné, že další stav bude D nebo E. Pokud však vstoupíme do
+stavu C, tak model kompletně ztratí přehled o kontextu (jak jsme do stavu vstoupili) a přitom může existovat
+vysoká korelace mezi tím, jak jsme vstoupili do C (jestli A a D) a tím, jak se rozhodneme dále (B a E).
+– Klonování stavu C nám umožňuje modelovat korelaci. Klonování se provádí tehdy, pokud
+#(A->C) > T1 a #(*->C kromě A->C) > T2, přičemž #(X) je počet provedení přechodu X, T1 a T2 je práh, A
+je aktuální stav a C je stav, do kterého se má přejít.
+▪ Prahové konstanty T1 a T2 umožňují určit, jak často bude docházet ke klonování.
+▪ Příliš časté klonování vede na větší paměťové nároky a model se stává více citlivý na fluktuace (stavy budou
+navštíveny s menší pravděpodobností). Obvykle se oba parametry volí stejně (2 – 256).
+47
+KKO - Kódování a komprese dat
+DMC – princip tvorby stavového grafu
+▪ Princip tvorby stavového grafu
+– DMC se inicializuje modelem, který je v případě dvouprvkové abecedy Σ = {0,1} tvořen jedním stavem.
+Oba přechody jsou inicializovány na stejnou na stejnou pravděpodobnost 𝑛0 = 𝑛1 = 0. Model se
+klonováním postupně rozšiřuje a zpřesňuje.
+– Klonování vede k nárůstu paměti, je proto nutné zvolit nějakou omezující podmínku. Typicky dochází k
+reinicializaci modelu při překročení maximálního dovoleného počtu uzlů.
+▪ Reset modelu a nahrazení jedním uzlem (příliš drastické)
+▪ Reset modelu, a jeho nahrazení modelem, který vznikne průchodem bufferu zachycujícího posledních k
+zpracovaných bytů, což vede na model s relativně malým počtem stavů
+48
+KKO - Kódování a komprese dat
+▪ DMC je vhodné implementovat pomocí tabulky. Není nutné vyhledávat kontext, ale stačí
+si pamatovat ukazatel na aktuální kontext a při aktualizaci následovat odkazy vedoucí z
+aktuální položky.
+– Indexem do tabulky je bitový kontext.
+– Položka tabulky obsahuje
+▪ počítadla n0 a n1.
+▪ dva ukazatele, které ukazují do tabulky na kontext, který získáme přidáním nuly nebo jedničky
+zprava a (případným) odebráním jednoho symbolu zleva.
+▪ Kompresní účinnost
+– DMC dává co se kompresního poměru týče podobné výsledky jako PPM v případě textu. Pokud
+komprimujeme binární data, DMC dosahuje lepšího kompresního poměru.
+DMC – implementace 49
+KKO - Kódování a komprese dat
+▪ Jinou možností, jak modelovat kontext proměnné délky je použít kontextový strom
+(Context Tree) uzly odpovídají stavům a hrany přechodům. Hranám je přidělena
+pravděpodobnost přechodu.
+▪ Příklad kontextového stromu pracujícího na úrovni slov:
+– Pokud jsme slyšeli ”from the” a chceme se rozhodnout
+zda-li další slovo je ”cup” nebo ”cop” pomůže nám
+znát i předchozí slovo, jestli se jedná o “drink from the”
+nebo “run from the”.
+– V jiném případě je postačující znát pouze „wash the“
+pro jednoznačnou odpověď.
+▪ My budeme uvažovat abecedu obsahující dva symboly S={0,1}.
+– zajímá nás, bude-li následovat 1 nebo 0
+Kontextový strom (Context Tree) 50
+KKO - Kódování a komprese dat
+▪ Uvažujme následující kontextový strom modelující kontext maximální délky 3 a obsahující tři
+stavy T = {00, 10, 1}
+– P(xt = 1|...xt−1 = 1) = θ1
+– P(xt = 1|...xt−2 = 0, xt−1 = 0) = θ00
+– P(xt = 1|...xt−2 = 1, xt−1 = 0) = θ10
+▪ Jaká je pravděpodobnost, že zdroj vygeneruje sekvenci 0110100 uvažujeme-li kontext 010 a je-li
+dán T uvedený výše?
+P(0110100|…010)=(1-θ10) θ00 θ1
+(1-θ1
+) θ10 (1-θ1
+) (1-θ10)=0.0059535
+Kontextový strom (Context Tree) 51
+0 1 0 0 1 1 0 1 0 0
+nalezený kontext: 10 00 1 1
+KKO - Kódování a komprese dat
+10 1 10
+θ1 = 0.1
+1
+1
+0
+0
+θ10 = 0.3
+Type θ00 = 0.5 equation here.
+−log2 0.0059535 = 7.392
+▪ CTW (Willems, Shtarkovm, Tjalkens, 1995) používá kontextový strom TD pro jehož každý
+uzel platí, že
+– reprezentuje binární řetězec s, jehož délka je nanejvýše D.
+– má nanejvýše dva potomky. Uzel s tvoří rodiče uzlu 0s a 1s.
+– má přiřazeny dvě počítadla, as ≥ 0 (počet případů, kdy za s následovala 0) a bs ≥ 0 (počet případů, kdy za
+s následovala 1). Pro počítadla přiřazená potomkům uzlu s platí, že a0s+ a1s= as a b0s+ b1s= bs
+▪ CTW používá k určení pravděpodobnosti výskytu dané sekvence rekurzivní vzorec, který
+začíná v listu a pokračuje směrem ke kořeni.
+– pro uzel s, který je listovým uzlem, platí, že Ps = Pkt(as
+, bs
+)
+– pro uzel s, který není listovým uzlem, platí, že Ps
+= 1/2 ( Pkt(as
+, bs
+) + P0sP1s)
+▪ Odhad Pktse počítá pomocí KT estimátoru (Krichevsky-Trofimov, 1981)
+– 𝑃𝑘𝑡 0,0 = 1
+– 𝑃𝑘𝑡 𝑎 + 1, 𝑏 =
+𝑎+
+1
+2
+𝑎+𝑏+1
+⋅ 𝑃𝑘𝑡(𝑎, 𝑏)
+– 𝑃𝑘𝑡 𝑎, 𝑏 + 1 =
+𝑏+
+1
+2
+𝑎+𝑏+1
+⋅ 𝑃𝑘𝑡(𝑎, 𝑏)
+Context Tree Weighting 52
+double Pkt(int a, int b):
+if (a>0):
+return (a-0.5)/(a+b) * Pkt(a-1, b)
+elif (b>0):
+return (b-0.5)/(a+b) * Pkt(a, b-1)
+return 1
+KKO - Kódování a komprese dat
+▪ CTW je založeno na myšlence
+– vytvořit prediktor, který je směsicí všech modelů kontextu omezených D.
+– využít schopnosti kontextového stromu TD modelovat souběžně všechny existující kontexty od nultého
+řádu až do řádu D.
+▪ Váhování jednotlivých modelů je založeno na dvojici hodnot (a,b).
+– Výsledná pravděpodobnost je vždy násobkem mocniny dvou a je možné ji tím pádem efektivně
+zakódovat (CTW se blíží teoretické optimální efektivitě).
+▪ Princip práce se stromem
+– začíná inicializací stromu max. hloubky D.
+– pro každý načtený vstupní bit se provede určení pravděpodobnosti výskytu řetězce, který se skládá z
+kontextu řádu D zprava doplněného o právě načtený bit
+– následně se provede aktualizace stromu. Poměrně jednoduchá operace, která vyžaduje pouze
+aktualizaci hodnot přiřazeným uzlům ležícím na jedné konkrétní cestě dané kontextem. Díky rekurzivní
+definici KT není potřeba rekurzivní přepočet.
+Context Tree Weighting 53
+KKO - Kódování a komprese dat
+Princip určení pravděpodobnosti pomocí CTW
+▪ Uvažujme váhovaný CT 𝑇3 (tj. 𝐷 = 3) pro sekvenci ℎ𝑖
+𝑇
+= 0110100 a 𝑥𝑖−𝐷
+0
+= …. 010.
+▪ 1) Od kořene postupně sestrojíme pro sekvenci ℎ𝑖
+𝑇
+všechny kontexty délky 1 až D
+55
+0 1 0 0 1 1 0 1 0 0
+minulost 1 2 3 4 5 6 7
+1, 7
+1, 5, 7
+1, 2, 3, 4, 5, 6, 7
+2
+2
+3, 4, 6
+3, 6
+3
+4
+4
+1, 2, 5, 7
+5
+6
+uvažovaná sekvence w
+1
+0
+1
+0
+1
+0
+1
+0
+1
+0
+1
+0
+1
+0
+KKO - Kódování a komprese dat
+1
+0
+1
+0
+1
+0
+1
+0
+1
+0
+1
+0
+1
+0
+▪ Uvažujme váhovaný CT T3
+(tj. 𝐷 = 3) pro sekvenci ℎ𝑖
+𝑇
+= 0110100 a 𝑥𝑖−𝐷
+0
+= …. 010.
+▪ 2) Přiřadíme počítadla (a,b) = (početu nul, počet jedniček)
+Princip určení pravděpodobnosti pomocí CTW 56
+0 1 0 0 1 1 0 1 0 0
+minulost 1 2 3 4 5 6 7
+1, 7 (2,0)
+1, 5, 7
+(2,1)
+1, 2, 3, 4, 5, 6, 7
+(a,b)=(4,3)
+2
+(0,1)
+2 (0,1)
+3, 4, 6
+(a,b) = (2,1)
+3, 6
+(1,1)
+3 (0,1)
+4
+(1,0)
+4 (1,0)
+1, 2, 5, 7
+(a,b)=(2,2)
+5 (0,1)
+6 (1,0)
+(0,0)
+(0,0)
+KKO - Kódování a komprese dat
+1
+0
+1
+0
+1
+0
+1
+0
+1
+0
+1
+0
+1
+0
+▪ Uvažujme váhovaný CT T3
+(tj. 𝐷 = 3) pro sekvenci ℎ𝑖
+𝑇
+= 0110100 a 𝑥𝑖−𝐷
+0
+= …. 010.
+▪ 3) Určíme PKT a Ps
+(postupujeme od listů směrem ke kořenu)
+Princip určení pravděpodobnosti pomocí CTW 57
+0 1 0 0 1 1 0 1 0 0
+minulost 1 2 3 4 5 6 7
+PKT=1.5/2PKT(1,0) = 3/8
+(2,0)
+(2,1)
+1/16
+(4,3)
+5/2048
+(0,1)
+(0,1) 1/2
+PKT=0.5/1=1/2
+(2,1)
+1/16
+(1,1)
+1/8
+(0,1)
+PKT=1/2
+(1,0)
+1/2
+(1,0)
+PKT=1/2
+(2,2)
+3/128
+(0,1)
+PKT=1/2
+(1,0)
+PKT=1/2
+(0,0)
+PKT=1
+(0,0)
+PKT=1
+𝑃𝑘𝑡 0,0 = 1
+𝑃𝑘𝑡 𝑎 + 1, 𝑏 =
+𝑎 +
+1
+2
+𝑎 + 𝑏 + 1
+⋅ 𝑃𝑘𝑡 𝑎, 𝑏
+𝑃𝑘𝑡 𝑎, 𝑏 + 1 =
+𝑏 +
+1
+2
+𝑎 + 𝑏 + 1
+⋅ 𝑃𝑘𝑡(𝑎, 𝑏)
+KKO - Kódování a komprese dat
+▪ Uvažujme váhovaný CT T3
+(tj. 𝐷 = 3) pro sekvenci ℎ𝑖
+𝑇
+= 0110100 a 𝑥𝑖−𝐷
+0
+= …. 010.
+▪ 3) Určíme PKT a Ps
+(postupujeme od listů směrem ke kořenu)
+Princip určení pravděpodobnosti pomocí CTW 58
+0 1 0 0 1 1 0 1 0 0
+minulost 1 2 3 4 5 6 7
+P010=PKT= 3/8
+P10=1/8
+P100=PKT=1/2
+P01=3/16
+P001=PKT=1/2
+P11=1/2(PKT+P111P011)=
+1/2(1/2 + 11/2)=1/2
+P011=PKT=1/2
+P110=PKT=1/2
+P101=PKT=1/2
+P111=PKT=1
+P000=PKT=1
+Listový uzel:
+Ostatní uzly:
+𝑃𝑠
+=
+1
+2
+𝑃𝑘𝑡 𝑎𝑠
+, 𝑏𝑠 + 𝑃0𝑠𝑃1𝑠
+𝑃𝑠 = 𝑃𝑘𝑡 𝑎𝑠
+, 𝑏𝑠
+P00=1/2
+P1=5/64
+P0=11/256
+PCTW = 1/2  (5/2048 + 5/6411/256)
+= 95/32768
+1
+0
+1
+0
+1
+0
+1
+0
+1
+0
+1
+0
+1
+0
+Prob(1|…0100110100) = 95/32768
+PCTW je pravděpodobnost že
+následující bit bude 1
+KKO - Kódování a komprese dat
+=1?
+8
+−log2 0.0028991 = 8.43
+Princip aktualizace CTW 59
+0 1 1 0 1 0 0
+minulost bit
+0
+1
+0
+1
+0
+1
+0
+1
+0
+1
+0
+1
+0
+1
+0
+(4+1,3)
+PKT=9/16PKT(4,3)=45/32768
+PCTW= 1/2(PKT+P1P0
+)=25/16384
+(2+1,2)
+PKT=1/2PKT(2,2)=3/256
+P0= 1/2(PKT+P10P00)=11/512
+(0+1,1)
+PKT=1/4PKT(0,1)=1/8
+P00=1/2(PKT+P100P000)=1/4
+(0+1,1)
+P100=PKT=3/8
+P000=PKT=1
+P10=1/8
+P1=5/64
+PCTW je aktualizovaná
+pravděpodobnost, že
+následující bit bude 1
+▪ Uvažujme váhovaný CT T3
+(tj. 𝐷 = 3) pro sekvenci ℎ𝑖
+𝑇
+= 0110100 a 𝑥𝑖−𝐷
+0
+= …. 010.
+▪ Uvažujme, že následující bit bude 0. Strom je aktualizován následovně
+KKO - Kódování a komprese dat
+𝑃𝑘𝑡 𝑎 + 1, 𝑏 =
+𝑎 +
+1
+2
+𝑎 + 𝑏 + 1
+⋅ 𝑃𝑘𝑡 𝑎, 𝑏
+▪ Mixování kontextů je kompresní metoda, kde predikce dalšího symbolu je získána
+kombinací dvou nebo více nezávislých modelů.
+▪ Kombinování kontextů je použito v sérii algoritmů PAQ, které podobně jako CTW nebo
+DMC pracují po bitech. Váhy však nejsou přiřazeny kontextům, ale jednotlivým
+modelům. Navíc kontexty se nemusí mixovat směrem od nejdelšího po nejkratší řád
+kontextu.
+Mixování kontextů (Context mixing)
+60
+Model 1
+p1
+(s|C)
+Model N
+s S
+S
+pN
+(s)
+p(s)
+…
+…
+KKO - Kódování a komprese dat
+▪ Algoritmy mixování kontextů (ZPAQ apod.) dosahují špičkové výsledky co se týče
+kompresního poměru, ale jsou velmi pomalé.
+Mixování kontextů 61
+https://quixdb.github.io/squash-benchmark
+KKO - Kódování a komprese dat
+▪ DMC, PPM a CTW jsou založeny na předpokladu, že nejlepším prediktorem je nejdelší
+kontext, pro který je k dispozici statistika.
+▪ Pro text je to obvykle pravda, ale
+– v audio souboru bude lepší používat prediktor, který bude u kontextů jednotlivých vzorků zanedbávat
+nejnižší bity, protože je to většinou šum.
+– v případě zpracování obrazů bude lepší použít prediktory zohledňující sousední pixely ve dvou
+rozměrech, což netvoří souvislý kontext.
+– kompresi textu lze vylepšit použitím kontextů, které leží na hranicích slov a ztotožňují velká a malá
+písmena.
+– v datech s pevnou délkou záznamu jako jsou databáze je užitečným kontextem číslo sloupce, někdy v
+kombinaci se sousedními daty ve dvou rozměrech.
+▪ Kompresory založené na PAQ mohou mít desítky až stovky různých modelů k predikci
+příštího vstupního bitu. Mixování kontextů je založeno na skutečnosti, že kombinovaná
+predikce nezávislých modelů komprimuje lépe, než kterákoliv ze součástí použitá
+samostatně.
+Mixování kontextů 62
+KKO - Kódování a komprese dat
+▪ Předpokládejme dva prediktory pravděpodobnosti, že příští bit y bude 1 pro dané
+kontexty A a B: pa = P(y=1|A) a pb = P(y=1|B) Jaká je p = P(y=1|A,B)?
+▪ Předpokládejme, že A a B nastaly dostatečně často, aby tyto dva modely poskytovaly
+spolehlivé odhady, avšak oba kontexty se dosud nevyskytly společně. Bohužel neexistuje
+jednoznačný předpis, jak modely kombinovat.
+▪ Základním přístupem je využít průměrování, tj. p = 1/2 (pa + pb
+) To však předpokládá, že
+výsledný efekt je součtem.
+▪ Když pa=0,5 a pb=0,99, pak se intuitivně zdá, že pb udává vyšší důvěru pro predikci, takže
+musí dostat větší váhu. V tomto případě by bylo výhodnější využít váhové průměrování
+p = apa + (1- a) pb
+– Váhování lze založit na tom, kolikrát jsme danou situaci v minulosti zaznamenali. Čím vyšší počítadlo, tím
+vyšší váhu by měl prediktor mít. Může však nastat problém při změně charakteru dat (nově příchozí by
+měly mít vyšší váhu).
+Mixování kontextů 63
+KKO - Kódování a komprese dat
+▪ Starší verze PAQ používají váhované lineární mixování
+– PAQ6 používá k modelů určujících pravděpodobnost na základě počtu jedniček 𝑛1
+(𝑖)
+a nul 𝑛0
+(𝑖)
+takto:
+𝑃
+𝑖 1 = 𝑛1
+𝑖
+/(𝑛0
+𝑖
++ 𝑛1
+𝑖
+), kde 𝑖 = 1 … 𝑘
+– Pravděpodobnosti se kombinují váhovým součtem počtů. Váhy jsou nastaveny tak, aby se
+minimalizovala cena za kódování v prostoru vah.
+P 1 =
+𝑆1
+𝑆1 + 𝑆0
+𝑆0 = 𝜀 + ෍
+𝑖
+𝑤𝑖𝑛0
+(𝑖)
+𝑆1 = 𝜀 + ෍
+𝑖
+𝑤𝑖𝑛1
+(𝑖)
+wi je nezáporná váha i-tého modelu a ε malá kladná konstanta, potřebná k zabránění degeneraci
+chování, když je S blízko 0
+– Aktualizace optimální váhy se dá najít z částečné ceny za kódování vzhledem k wi. Cena za kódování 0 je
+− log p1, za 1 je to −log p0. Výsledkem je, že po zakódování bitu y (0 nebo 1) se váhy aktualizují
+postupem podél cenového gradientu v prostoru vah:
+𝑤𝑖 = max 0, 𝑤𝑖 + 𝐸[ 𝑆0 + 𝑆1 𝑛1
+𝑖 − 𝑆1(𝑛0
+𝑖 + 𝑛1
+𝑖
+)]/(𝑆0𝑆1) , 𝐸 = 𝑦 − 𝑃 1
+kde E je chyba predikce
+– Počty se upravují ve prospěch nových dat. Dvojice (n0, 𝑛1) reprezentuje stav (podobně jako u
+dvoustupňového modelu).
+Lineární mixování 64
+KKO - Kódování a komprese dat
+▪ Vstupem mixeru je množina predikcí z jednotlivých modelů, výstupem
+mixeru je opravená predikce.
+– Předpokladem je, že seskupení modelů bude dávat vyšší přesnost nežli jednotlivé
+modely. Čím větší je chyba predikce E, tím více je nutné během aktualizace vah
+konkrétní váhu korigovat. Analogický princip je použit i v neuronových sítích a učícím
+algoritmu Back Propagation.
+▪ Pro mixování je v PAQ použita jednoduchá neuronová síť bez skrytých
+vrstev.
+– Vstupem jsou výstupy jednotlivých modelů, tj. množina predikcí pravděpodobností Pi
+,
+že další bit bude 1.
+– Na vstupy je aplikována logistická funkce stretch(p)=log(p/(1-p)).
+– Získané hodnoty jsou váhovány koeficienty wi
+, sečteny a na výstup je aplikována
+reverzní transformace squash(x)=1/(1 + e-x
+), tj. p = squash(Σi wi
+stretch(Pi
+))
+– Hledání optimální aktualizace vah se provádí s využitím částečných derivací ceny za
+kódování s ohledem na váhy wi = wi + λ E stretch(Pi
+), kde λ je rychlost učení, typicky
+kolem 0,01 a E=(y – p) je predikční chyba.
+– Na rozdíl lineárního mixování mohou být váhy záporné.
+Mixování neuronovými sítěmi 65
+𝑤𝑚 = 𝑤𝑚 + 𝑒𝑟𝑟𝑜𝑟𝑚 ⋅ 𝛼 ⋅ 𝐼𝑛𝑝𝑢𝑡𝑖
+KKO - Kódování a komprese dat
+▪ V PAQ / ZPAQ jsou funkce squash() a stretch() implementovány pomocí lookup tabulek,
+kde jsou uložena 12-bit / 15-bit čísla s pevnou čárkou.
+Mixování neuronovými sítěmi 66
+Model 1 Model 2 Model 3 … Model N
+…
+stretch stretch stretch stretch
+S
+…
+squash
+P
+*
+(1)
+P1
+P2 PN
+w1
+w2 w3
+wN
+𝑠𝑡𝑟𝑒𝑡𝑐ℎ 𝑥 = 𝑙𝑛
+𝑥
+1 − 𝑥
+𝑠𝑞𝑢𝑎𝑠ℎ 𝑥 = 𝑠𝑡𝑟𝑒𝑡𝑐ℎ
+−1 𝑥 =
+1
+1 + 𝑒
+−𝑥
+KKO - Kódování a komprese dat
+▪ Převod do logistické domény má následující vlastnost: model jehož výstup Pi
+je hodnota
+blízká 0 nebo hodnota blízká 1 bude mít přiřazen vyšší význam. Naopak, logistická
+funkce přiřazuje nejmenší (nulový) význam těm modelům, které dávají pi=0.5.
+Mixování neuronovými sítěmi 67
+0 0.5 1
+KKO - Kódování a komprese dat
+▪ PAQ (od 2002) je série archivačních kompresních programů, které dávají nejlepší
+kompresní poměr. Tyto programy byly vyvinuty a odladěny na sadě benchmarkových
+úloh.
+▪ Jedná se o Open source software, dostupný pod GNU General Public License a dostupný
+na http://mattmahoney.net/dc/paq.html.
+▪ PAQ používá mixování kontextu a sbírá statistiky příštích symbolů pro následující
+kontexty:
+– n-gramy. Kontext je posledních n bytů před predikovaným znakem (jako v PPM).
+– n-gramy celých slov, kdy se ignoruje, zda jsou písmena malá nebo velká (užitečné v textových
+souborech).
+– „řídké“´kontexty, například druhý a čtvrtý byte, předcházející predikovaný znak (používá se u některých
+binárních souborů).
+– „analogové“ (souvislé) kontexty, tvořené vyššími bity předcházejících 8- nebo 16-bitových slov (užitečné
+pro multimediální soubory).
+– dvourozměrné kontexty (užitečné pro obrázky, tabulky a tabulkové procesory). Délka řádku se určí
+nalezením délky kroku opakujících se bytových vzorků.
+– další specializované modely pro exe-soubory x86, nebo obrázky v BMP, TIFF nebo JPEG. Tyto modely
+jsou aktivní pouze v případě detekování určitého typu souboru.
+PAQ 72
+KKO - Kódování a komprese dat
+▪ Všechny verze PAQ predikují a komprimují v každém okamžiku jeden bit, ale liší se
+detailech modelů a jak se predikce kombinují a na závěr zpracují. Pro kódování se
+používá aritmetický kodér.
+▪ Podle verze jsou tři metody kombinování predikcí
+– V PAQ1 až PAQ3 se každá predikce reprezentuje jako dvojice bitových počtů (n0
+, n1
+). Tyto počty se
+kombinují váhovým součtem s většími váhami přidělenými delším kontextům.
+– V PAQ4 až PAQ6 se predikce kombinují stejně jako u předchozí, ale váhy přidělené každému modelu se
+nastavují ve prospěch přesnějšího modelu PAQi
+.
+– PAQ7 a výše model nevytváří dvojici, ale jednu pravděpodobnost. Pravděpodobnosti se kombinují
+pomocí umělé neuronové sítě.
+▪ PAQ1SSE a další verze zpracovávají na závěr predikci pomocí druhé estimace symbolu
+SSE. Kombinovaná predikce a krátký kontext se používá k nalezení nové predikce v
+tabulce. Po zakódování bitu se položka tabulky nastaví tak, aby se snížila predikční
+chyba. Stupně SSE se mohou řetězit s různými kontexty nebo počítat paralelně s
+průměrováním výstupů.
+PAQ – kombinování predikcí 73
+KKO - Kódování a komprese dat
+▪ Pokročilejší verze PAQ, zejména PAsQ, PAQAR (obě jsou odvozené z PAQ6) a PAQ8HP1 až
+PAQ8HP8 (odvozené z PAQ8 - odměněné Hutterovou cenou 50k€ for enwik 100)
+předzpracovávají textové soubory.
+▪ Vyhledávají se slova v externím slovníku a nahrazují se 1 – 3 bytovými kódy. V sérii
+PAQ8HP je slovník organizován vytvářením skupin ze syntakticky a sémanticky
+podobných slov. To umožňuje modelům používat jako kontext pouze nejvyšší významové
+bity kódů ze slovníku.
+▪ Velká písmena se zakódují speciálním znakem následovaným malým písmenem.
+PAQ – preprocessing 74
+KKO - Kódování a komprese dat

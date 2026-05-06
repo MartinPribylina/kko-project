@@ -1,0 +1,2789 @@
+KKO Automated synthesis of approximate circuits
+Kódování a komprese dat
+Statistické metody
+(entropy encoding)
+Zdeněk VAŠÍČEK
+Fakulta informačních technologií, Vysoké učení technické v Brně
+Brno, Czech Republic
+vasicek@fit.vutbr.cz
+1
+KKO - Kódování a komprese dat
+Statistické metody komprese dat
+▪ Tunstallovo kódování
+– Princip, algoritmus tvorby blokových kódů
+▪ Shannon-Fanovo kódování
+– Princip, algoritmus, vlastnosti
+▪ Huffmanovo kódování
+– Princip, algoritmus, vlastnosti (best a worst case), střední délka kódování
+– Hufmanovy kódy s nejmenší variancí
+– Efektivní implementace kodéru a dekodéru (kanonický Huffmanův kód a jeho tvorba)
+– N-ární Huffmanovo kódování
+– Adaptivní Huffmanovo kódování (FGK algoritmus, Vitterův algoritmus)
+▪ Aritmetické kódování
+– Adaptivní aritmetické kódování
+– Intervalové kódování (Range encoding)
+▪ Asymmetric Numeral Systems (ANS)
+KKO - Kódování a komprese dat
+2
+Statistické metody komprese dat (tzv. entropické kodéry)
+▪ Statistické metody komprese dat ke své činnosti využívají znalost pravděpodobnosti
+výskytu symbolů zdrojové abecedy a tvoří základ většiny kompresních algoritmů.
+– entropický kodér tvoří typicky poslední úroveň kompresního algoritmu
+– výsledkem transformace, predikce či kvantizace jsou hodnoty, které je nutné zakódovat
+▪ Většina metod nahrazuje symboly fixní délky kódovými slovy proměnné délky. Kódová
+slova jsou volena tak, aby jejich délka rostla proporcionálně k hodnotě log𝐷 1/𝑝, kde 𝐷
+odpovídá počtu symbolů kódové abecedy a 𝑝 odpovídá pravděpodobnosti výskytu
+symbolu vstupní abecedy.
+– Často se vyskytující symboly jsou tím pádem kódovány kratšími kódy.
+– Čím přesněji známe rozložení pravděpodobností, tím vyšší bude účinnost komprese.
+▪ Základní metody:
+– Huffmanovo kódování
+– Aritmetické kódování
+– Intervalové kódování (Range encoding)
+▪ Pokročilé metody:
+– Asymmetric numeral systems (metoda kombinující výhody Huffmanova a aritmetického kódování)
+KKO - Kódování a komprese dat
+4
+Statistické modelování
+Pro určení pravděpodobnosti je možné uvažovat různě komplexní modely
+▪ Četnosti výskytů symbolů
+– předpokládá se, že jednotlivé výskyty symbolů jsou nezávislé a mají stejné rozdělení
+– četnosti se typicky zjistí z bloku dat určité délky
+▪ Jednoduchá kontextová závislost
+– předpokládá se závislost na k předchozích symbolech – viz Markovův model k-tého řádu
+▪ Pokročilá kontextová závislost
+– použití variabilního počtu předchozích symbolů jako kontextu (PPM - Prediction by Partial Matching)
+– kombinování predikcí z více kontextů (CM - Context Mixing)
+▪ Známé rozdělení
+– pokud data respektují jisté rozdělení pravděpodobnosti, je možné určit pouze parametry tohoto rozdělení a
+používat pravděpodobnosti z tohoto modelu. Viz např. Normální rozdělení, Exponenciální rozdělení,
+Cauchyho rozdělení, atd. (viz kódování čísel)
+Jakmile známe pravděpodobnosti výskytu symbolů, můžeme využít faktu, že
+– symbol 𝑎 s pravděpodobností výskytu 𝑝 má informační obsah 𝑖(𝑎) = log2
+1
+𝑝
+bitů
+– kód délky 𝑟 implikuje pravděpodobnost výskytu 𝑃 𝑎 = 2
+−𝑟
+KKO - Kódování a komprese dat
+5
+Tunstallovo kódování (blokové entropické)
+▪ Většina entropických kodérů typicky kóduje symboly pevné délky proměnným počtem bitů.
+Výjimku tvoří Tunstallův kód (1967), který používá kódová slova pevné délky přičemž kódové
+slovo reprezentuje různě dlouhý řetězec symbolů.
+– Kód je odolnější vůči chybě při přenosu oproti kódům s proměnnou délkou kódových značek.
+– Práce s pevným počtem bitů kódových slov je jednodušší.
+▪ Motivace: Uvažujme vstup tvořený symboly z abecedy Σ = 𝐴, 𝐵 . Zdroj dat může produkovat
+sekvence, které často obsahují podřetězce AA, AAA, AB, AAB, ale málo kdy se vyskytne
+podřetězec BB.
+– Můžeme použít kódování, kdy 𝐴𝐴 → 000, 𝐴𝐴𝐴 → 001, 𝐴𝐵 → 010, 𝐴𝐵𝐴 → 011, 𝑎 𝐵 → 100 (tzn. variableto-fixed).
+– Málo pravděpodobný výskyt BB bude kódován jako 100100, pokud bude předcházet A, použije se kratší kód
+010, 011 nebo 100.
+– Problém: proces kódování není jednoznačný (AAABAAB, lze interpretovat jako AAA, B, AA, B, nebo jako AA,
+ABA, AB), kodování je neefektivní (využito pouze 5 z 8 kombinací) a nereflektuje četnosti výskytů jednotlivých
+znaků.
+▪ Řetězce symbolů vstupní abecedy tvoří tzv. slovník.
+– Pro dostatečně velký slovník se průměrný počet bitů na symbol blíží entropii zdroje.
+– Slovník je nutné konstruovat tak, abychom byli schopni kódovat libovolný vstupní tok.
+– Kódová slova lze přiřadit položkám slovníku libovolně.
+– Nevýhoda: slovník musí být uložen do výstupního toku, aby bylo možné vstup rekonstruovat.
+KKO - Kódování a komprese dat
+6
+Tunstallův kód
+▪ Algoritmus:
+– Vstup: zdrojová abeceda Σ, pravděpodobnosti jednotlivých symbolů 𝑃 𝑎 , 𝑎 ∈ Σ, a 𝑁 definující max.
+velikost kódové abecedy. Předpokládá se zdroj generující na sobě nezávislé symboly se stejným
+rozdělením pravděpodobností, tj. 𝑃 𝑎1𝑎2. . . 𝑎𝑘 = 𝑃 𝑎1 𝑃 𝑎2 … 𝑃 𝑎𝑘
+– Výstup: slovník 𝑇 kterému se libovolně přiřadí kódy o délce 𝑁 bitů, tj. f: 𝑇 → 0,1
+𝑁
+▪ Střední délka kódování je rovna
+KKO - Kódování a komprese dat
+7
+𝑇 ← Σ
+𝑖 ← 0
+𝑛 ← |𝑇|
+while 𝑛 + 𝑖 + 1 𝑛 − 1 ≤ 2
+𝑁 do
+𝑥 ← 𝑤 ∈ 𝑇, 𝑃 𝑤 ≥ 𝑃 𝑤′
+, 𝑤′ ∈ 𝑇
+𝑇 ← (𝑇 ∖ {𝑥}) ⋃ {𝑥𝑦 𝑦 ∈ Σ
+𝑖 ← 𝑖 + 1
+0.9 0.1
+A B
+A B
+0.81 0.09
+A B
+0.729 0.081
+Příklad: Σ = {𝐴, 𝐵}, 𝑃 𝐴 = 0.9, 𝑃 𝐵 = 0.1, 𝑁 = 2.
+Výstup: 𝑇 = (𝐴𝐴𝐵, 𝐴𝐵, 𝐵, 𝐴𝐴𝐴) a
+𝑃 𝑡 = 0.081,0.09,0.1,0.729 ,𝑡 ∈ 𝑇;
+𝑓 = 2/(3(0.081 + 0.729) + 2 ∗ 0.09 + 0.1) =
+𝑓 = 0.738 bitů na symbol; 𝐻(𝒮) = 0.468
+𝑁
+σ𝑤∈T 𝑃 𝑤 |𝑤|
+Shannon-Fanovo kódování
+▪ Shannon-Fanovo kódování (1948) je první metoda navržená pro nalezení optimálních
+prefixových kódů pracující na principu rozkladu množiny na podmnožiny.
+▪ Algoritmus:
+– Vstup: zdrojová abeceda Σ = {𝑎1, … , 𝑎𝑛}, 𝑛 ≥ 2, uspořádaná dle pravděpodobnosti výskytu
+jednotlivých symbolů 𝑃 𝑎𝑖
+tak, aby 𝑃 𝑎𝑖 ≥ 𝑃 𝑎𝑗 pro 𝑖 < 𝑗
+– Výstup: 𝑓: Σ → {0,1}
++
+KKO - Kódování a komprese dat
+9
+def SF(𝑙, 𝑟):
+if 𝑙 + 1 = 𝑟 then
+𝑓 𝑎𝑙 ← 𝟎
+𝑓(𝑎𝑟) ← 𝟏
+return
+𝑗 ← argmin
+𝑗
+σ𝑖=𝑙
+𝑗
+𝑃(𝑎𝑖) − σ𝑖=𝑗+1
+𝑟 𝑃(𝑎𝑖)
+SF(𝑙,𝑗)
+SF(𝑗 + 1, 𝑟)
+𝑓 𝑎𝑖 ← 𝟎𝑓 𝑎𝑖 𝐟𝐨𝐫 𝑖 = 𝑙 … 𝑗
+𝑓 𝑎𝑖 ← 𝟏𝑓 𝑎𝑖 𝐟𝐨𝐫 𝑖 = 𝑗 + 1 … 𝑟
+Příklad: Σ = 𝑎1, … , 𝑎6 , tj. SF(1,6)
+𝑓 = 2 0.36 + 0.18 + 0.18 + 3 ⋅ 0.12 +
+4 0.09 + 0.07 = 2.44, 𝐻 = 2.37
+Shannon-Fanovo kódování
+▪ Algoritmus pro konstrukci Shannon-Fanova kódování produkuje optimální kód pouze za
+určitých podmínek.
+– Shannon-Fanova metoda dává dobrý kód, když jsou rozklady dobré, tj. když podmnožiny v každém
+rozkladu mají velmi blízké výsledné pravděpodobnosti.
+Např. případ, kdy pravděpodobnosti jsou záporné mocniny 2.
+▪ Příklad: Σ = {A, B, C,D, E}, zpráva obsahující 39 symbolů 𝑓𝑟𝑒𝑞(𝑎) = 15,7,6,6,5 , 𝑎 ∈ Σ
+– 𝐻 = 2.19 bitů na symbol
+– Shannon fanovo kódování:
+𝑓SC 𝑎 = 00,01,10,110,111 ,
+𝑓SC =
+2
+39
+15 + 7 + 6 +
+3
+39
+6 + 5 = 2.28 bitů na symbol
+– Huffmanovo kódování:
+𝑓HC 𝑎 = 0,100,101,110,111 ,
+𝑓HC =
+1
+39
+(15) +
+3
+39
+7 + 6 + 6 + 5 = 2.23 bitů na symbol
+KKO - Kódování a komprese dat
+10
+a freq(a) 1 2 3
+A 15
+0
+00
+B 7 01
+C 6
+1
+10
+D 6
+11
+110
+E 5 110
+22
+17 11
+Huffmanovo kódování
+▪ Huffmanovo kódování (Huffman, 1952) je všeobecně používaná metoda komprese dat,
+která tvoří základ mnoha aplikací (ZIP, JPEG, MP3, …).
+▪ Huffmanova metoda se podobá Fano-Shannonově metodě, ale dává obecně lepší kód.
+– Podobně jako Shannon-Fanova metoda řeší problém nalezení optimálního prefixového kódu pro
+abecedu symbolů a dané pravděpodobnostní rozdělení.
+– Hlavní rozdíl mezi těmito dvěma metodami je, že Shannon-Fano metoda konstruuje kódová slova shora
+dolů (od levého nejvyššího bitu k nejnižšímu), kdežto Huffman konstruuje kódová slova zdola nahoru.
+– Metoda dává optimální kód pro pravděpodobnosti symbolů rovné záporným mocninám 2.
+▪ Huffmanův algoritmus byl předmětem intenzivního výzkumu v oblasti komprese dat.
+– Důkaz optimálnosti a neexistence jiného kódování s kratší průměrnou délkou (Gilbert and Moore, 1959)
+– Odvození horní hranice redundance (Gallager, 1978). Pro běžný text má Huffmanův kód redundanci 𝑅 =
+0.1 bitů na symbol oproti ideálnímu entropickému kodéru jako je např. Aritmetické kódování.
+– Varianta Huffmanova kódování s omezenou délkou značek (Fraenkel, 1993)
+KKO - Kódování a komprese dat
+11
+"A Method for the Construction of Minimum-Redundancy Codes“ Huffman, 1952
+Horní hranice redundance (Gallager, 1978)
+▪ Horní hranice redundance
+𝑅 = ቊ
+𝑝𝑚𝑎𝑥 + 0.086 pokud 𝑝𝑚𝑎𝑥 ≥ 0.5
+𝑝𝑚𝑎𝑥 pokud 𝑝𝑚𝑎𝑥 < 0.5
+, kde 𝑝𝑚𝑎𝑥 je pravděpodobnost nejčastějšího symbolu.
+▪ Vliv velikost abecedy na efektivitu Huffmanova kódování (𝑝𝑚𝑎𝑥):
+– Početná abeceda má tendenci mít malé 𝑝𝑚𝑎𝑥 => menší redundance
+– Malá abeceda má tendenci mít velké 𝑝𝑚𝑎𝑥 => větší redundance
+▪ R lze libovolně přiblížit 0, pokud budeme vstup zpracovávat po blocích o 𝑛 symbolech,
+kde jsme odvodili:
+𝐻 𝑆 ≤ 𝐿 < 𝐻 𝑆 +
+1
+𝑛
+– n=1 odpovídá Shannonově větě o kódování
+– počet symbolů však roste exponenciálně s 𝑛 a je roven D
+𝑛
+, což je nepraktické
+KKO - Kódování a komprese dat
+12
+Huffmanovo kódování – algoritmus konstrukce binárního Huffmanova stromu
+▪ Konstrukce Huffmanova kódování je rekurzivní proces, který
+– přiřazuje symbolům s vyšší pravděpodobností výskytu kratší značky a dvěma symbolům (binární kódová
+abeceda) vyskytujícím se nejméně často značky stejné délky
+– začíná s dvěma (binární kódová abeceda) nejméně se vyskytujícími symboly
+▪ Princip (neformálně):
+– Metoda začíná vytvořením seznamu abecedních symbolů v sestupném pořadí jejich pravděpodobností.
+– Pak se konstruuje strom, se symbolem v každém listu a to zdola nahoru. To se provádí v krocích, kdy se v
+každém kroku vyberou dva symboly s nejnižší pravděpodobností, sečtou se do vrcholu místního sbíhání
+větví, vyškrtnou se ze seznamu a nahradí se přidaným symbolem, který je oba reprezentuje. Když se
+seznam redukuje na jediný symbol, který reprezentuje celou abecedu, je strom dokončen.
+– Strom se pak systematicky prochází a tím se zjistí kódy pro všechny symboly.
+KKO - Kódování a komprese dat
+13
+Huffmanovo kódování – konstrukce binárního Huffmanova stromu
+▪ Příklad: Σ = {a1, a2, a3, a4, a5}, 𝑃 𝑎𝑖 = 0.4, 0.2, 0.2, 0.1, 0.1
+– Huffmanův kód není jediný, ukázka tří různých stromů:
+KKO - Kódování a komprese dat
+14
+𝑓𝐻𝐶1 𝑎𝑖 = {0,10,111,1101,1100} 𝑓𝐻𝐶2 𝑎𝑖 = {11,01,00,101,100} 𝑓𝐻𝐶3 𝑎𝑖 = {1,011,010,000,001}
+▪ Střední délka:
+– 𝑓𝐻𝐶1 =
+4
+10
+⋅ 1 +
+2
+10
+⋅ 2 +
+2
+10
+⋅ 3 +
+1
+10
+⋅ 4 +
+1
+10
+⋅ 4 = 2.2 bitů/symbol,
+– 𝑓𝐻𝐶2 =
+4
+10
+⋅ 2 +
+2
+10
+⋅ 2 +
+2
+10
+⋅ 2 +
+1
+10
+⋅ 3 +
+1
+10
+⋅ 3 = 2.2 bitů/symbol,
+– 𝑓𝐻𝐶3 =
+4
+10⋅ 1 +
+2
+10⋅ 3 +
+2
+10⋅ 3 +
+1
+10⋅ 3 +
+1
+10⋅ 3 = 2.2 bitů/symbol.
+Optimalita Huffmanova kódování
+▪ Věta: Prefixové kódování s proměnnou délkou kódových slov je optimální tehdy, když
+splňuje následující podmínky:
+1. Máme-li dva symboly 𝑎𝑗
+a 𝑎𝑘
+a 𝑃 𝑎𝑗 ≥ 𝑃(𝑎𝑘), pak pro délku kódových slov platí 𝑙𝑗 ≤ 𝑙𝑘
+2. Dva symboly s nejmenší pravděpodobností mají stejnou maximální délku kódových slov 𝑙𝑚.
+3. Ve stromové reprezentaci kódování musí z každého vnitřního uzlu vycházet dvě větve.
+▪ jinak můžeme odebrat při zachování podmínky jednoznačné dekódovatelnosti => snížení průměrné délky
+4. Pokud změníme vnitřní uzel na listový vytvořením nového symbolu, který vznikne zkombinováním
+listových uzlů příslušejícím k tomuto uzlu, pak platí, že pokud původní strom reprezentoval optimální
+kódování, tak také nový strom reprezentuje optimální kódování avšak pro redukovanou abecedu.
+▪ Pokud by tato podmínka neplatila, lze zkombinovaný symbol reprezentovat kódem s menší průměrnou délkou.
+Takový kód bychom pak mohli rozbalit a nahradit symbol novým stromem. To je však v rozporu s tvrzením, že
+původní strom reprezentuje optimální kódování.
+▪ Důsledek:
+– Podmínka 3, 2 a 1 říká, že kódová slova délky 𝑙𝑚 přiřazená dvěma symbolům vyskytujícím se s nejmenší
+pravděpodobností se liší pouze v posledním bitu. Podmínka 4 říká, že můžeme zkombinovat tyto dva
+symboly, čímž dostaneme redukovanou abecedu. Pak ale můžeme stejný princip (redukce abecedy)
+zopakovat znovu aniž bychom porušili některou z podmínek. To je však princip konstrukce Huff. k.
+KKO - Kódování a komprese dat
+15
+Huffmanovo kódování – konstrukce kódových slov pro libovolnou abecedu
+▪ Algoritmus:
+– Vstup: zdrojová abeceda Σ = {𝑎1, … , 𝑎𝑛}, pravděpodobnosti
+výskytu jednotlivých symbolů 𝑃 𝑎𝑖
+, kódová abeceda
+Γ = {𝑏1, … , 𝑏𝑚}
+– Výstup: 𝑓: Σ → Γ
++
+KKO - Kódování a komprese dat
+17
+def HC(Σ
+′
+= 𝑎1
+′
+, … , 𝑎𝑛
+′
+′
+, 𝑝1
+′
+, … , 𝑝𝑛
+′
+′
+):
+seřaď prvky Σ
+′
+tak, aby 𝑝𝑖
+′ ≥ 𝑝𝑗
+′ pro 𝑖 < 𝑗
+if 𝑛
+′ ≤ 𝑚 then
+𝑓 𝑎𝑖
+′ ← 𝒃𝒊
+for 𝑖 = 1, … , 𝑛
+′
+else
+if 𝑛
+′
+= 𝑛 then
+𝑚′ ← 𝑛 − 2 mod 𝑚 − 1 + 2
+else
+𝑚′ ← 𝑚
+HC Σ
+′ ∖ 𝑎𝑛
+′−𝑚′+2
+′
+, … , 𝑎𝑛
+′
+′
+, 𝑝1
+′
+, … , 𝑝𝑛
+′−𝑚′
+′
+, σ𝑖=𝑛′−𝑚′+1
+𝑛
+′
+𝑝𝑖
+′
+𝑓 𝑎𝑛
+′−𝑚′+𝑖
+′
+← 𝑓 𝑎𝑛
+′−𝑚′+𝑖
+′ 𝒃𝒊 𝐟𝐨𝐫 𝑖 = 1, … , 𝑚′
+Příklad:
+Σ = 𝑎1, 𝑎2, 𝑎3, 𝑎4, 𝑎5 , Γ = {0,1},
+𝑃 𝑎𝑖 = 0.4, 0.2, 0.2, 0.1, 0.1
+HC(Σ, 𝑃)
+𝑚 = 2, 𝑛
+′
+= 5, 𝑛 = 5,
+Σ
+′
+= 𝑎1
+′
+, … , 𝑎5
+′
+= {𝑎1, 𝑎2, 𝑎3, 𝑎4, 𝑎5}
+𝑚′
+= 3 mod 1 + 2 = 2
+𝑛
+′ − 𝑚′ + 2 = 5
+ HC({𝑎1
+′
+, 𝑎2
+′
+, 𝑎3
+′
+, 𝑎4
+′
+},{0.4,0.2,0.2,0.2})
+𝑓(𝑎4
+′
+) = 𝑓(𝑎4
+′
+) 0, 𝑓(𝑎5
+′
+) = 𝑓(𝑎5
+′
+) 1
+Vztah střední délky a vah uzlů Huffmanova stromu
+▪ Dá se ukázat, že v Huffmanově stromu (obecně stromu, kde je hodnota každého uzlu
+součtem hodnot svých potomků) se váhový součet listů, kde váhy jsou vzdálenosti listů
+od kořene, rovná součtu vah vnitřních uzlů.
+– Tato vlastnost poskytuje způsob výpočtu střední délky množiny Huffmanových kódů bez násobení.
+Jednoduše se sečtou hodnoty všech vnitřních uzlů stromu (včetně kořenového).
+▪ Příklad:
+– 𝑓 = σ𝑖=1
+5 𝑝𝑖
+𝑙𝑖 =
+4
+10
+⋅ 1 +
+2
+10
+⋅ 2 +
+2
+10
+⋅ 3 +
+1
+10
+⋅ 4 +
+1
+10
+⋅ 4 = 2.2 bitů/symbol
+– 𝑓 = 𝑎45 + 𝑎345 + 𝑎2345 + 𝑎12345 = 0.2 + 0.4 + 0.6 + 1.0 = 2.2 bitů/symbol
+KKO - Kódování a komprese dat
+19
+Huffmanovo kódování – konstrukce Huffmanova stromu
+▪ Příklad:
+– Je dáno osm symbolů Σ = 𝐴, 𝐵, 𝐶,𝐷, 𝐸, 𝐹, 𝐺, 𝐻 s pravděpodobnostmi 𝑃(𝑎) =
+1
+30
+{1,1,1,2,3,5,5,12}.
+– Nakreslete tři různé Huffmanovy kódy s výškami 5 a 6 pro tyto symboly a vypočtěte střední délku kódu
+pro každý z nich.
+KKO - Kódování a komprese dat
+20
+Huffmanovy kódy s nejmenší variancí
+▪ Jsou různé Huffmanovy kódy pro danou množinu symbolů ekvivalentní nebo má některý
+Huffmanův kód výhodnější vlastnosti?
+– Ukazuje se, že libovolná rozhodnutí, učiněná při konstrukci Huffmanova stromu ovlivňují jednotlivé kódy,
+ale ne střední délku kódu nebo redundanci (viz též důkaz optimálnosti Huff. kódování).
+– Kromě střední hodnoty však můžeme zkoumat další parametry – např. rozptyl (angl. variance) kódování.
+▪ Variance kódování určuje, jak moc se délky jednotlivých kódů odchylují od střední délky.
+𝑉𝑎𝑟 𝑓 = ෍
+𝑎
+𝑓(𝑎) − 𝑓
+2
+▪ Huffmanův kód s minimální variancí je výhodnější v případech, kdy kodér vysílá
+komprimovaný tok komunikační linkou.
+– Kód s velkou variancí způsobí, že kodér generuje bity s proměnnou rychlostí => vyrovnávací paměť.
+Čím je variance kódu vyšší, tím je vyšší kolísání rychlosti vstupu bitů do vyrovnávací paměti, což
+vyžaduje, aby kodér použil delší vyrovnávací paměť.
+– Huffmanův kód s nulovou variancí bude vstupovat do vyrovnávací paměti s konstantní rychlostí, takže
+bude stačit krátká vyrovnávací paměť.
+– Když kodér pouze zapisuje komprimovaný tok do souboru, nehraje variance kódu žádnou roli.
+KKO - Kódování a komprese dat
+21
+Huffmanovy kódy s nejmenší variancí
+▪ Variance kódování pro uvedené příklady:
+– Pro 𝑓𝐻𝐶1 je 𝑉𝑎𝑟 𝑓𝐻𝐶1 =
+4
+10
+1 − 2.2
+2 +
+2
+10
+2 − 2.2
+2 +
+2
+10
+3 − 2.2
+2 +
+1
+10
+4 − 2.2
+2 +
+1
+10
+4 − 2.2
+2 = 1.36 bitů/symbol
+– Pro 𝑓𝐻𝐶2 je 𝑉𝑎𝑟 𝑓𝐻𝐶2 =
+4
+10
+2 − 2.2
+2 +
+2
+10
+2 − 2.2
+2 +
+2
+10
+2 − 2.2
+2 +
+1
+10
+3 − 2.2
+2 +
+1
+10
+3 − 2.2
+2 = 0.16 bitů/symbol.
+▪ Tvorba Huffmanova kódování s minimální variancí: Existuje-li možnost volby více než
+jednoho symbolu se stejnou pravděpodobností, zvol takové dva, které se ve stromu
+nachází co nejblíže listovým uzlům.
+– Modifikace řadicí procedury: Původní 𝑎𝑛
+′
+′
+bude po seřazení na pozici 𝑎𝑖
+′
+,
+kde 𝑖 < 𝑗 pro všechna 𝑗, pro která platí, že 𝑝𝑗
+′
+= p𝑖
+′
+KKO - Kódování a komprese dat
+22
+a3
+a4
+a5
+a1
+a2
+0
+0 1
+0
+1
+1
+0 1 a2
+a4
+a1
+a3
+a5
+0 1
+0 1 0 1
+0 1
+Vlastnosti Huffmanova kódování pro binární kódovou abecedu (m=2)
+▪ Pokud jsou pravděpodobnosti rovny záporným mocninám dvou, tj. 𝑝𝑖 = 2
+−𝑖
+, 𝑖 ≥ 1, pak
+redundance kódování je rovna nule.
+▪ Mají-li dva a více symbolů stejnou pravděpodobnost výskytu, pak způsob volby symbolů
+v průběhu konstrukce má vliv na výsledný kód.
+– Viz Huffmanovo kódování s minimální variabilitou
+▪ Pokud 𝑝𝑖 ≥ σ𝑗=𝑖+2
+𝑛 𝑝𝑗
+, 𝑝𝑖 ≥ 𝑝𝑗 pro 𝑖 < 𝑗, pak kódové slovo 𝑎𝑖
+, 𝑖 = 1, … , 𝑛 − 1,
+odpovídá unárnímu kódu hodnoty 𝑖 − 1, tj 𝑎𝑖 = 𝟏
+𝑖−1𝟎, a kódové slovo 𝑎𝑛 = 𝟏
+𝑛
+– Příklad: 𝑝𝑖 = 2
+−𝑖
+, 𝑝𝑛 = 2
+−(𝑛−1)
+, 𝑖 = 1, … , 𝑛 − 1
+– Pro 𝑖 = 1, … , 7 máme 𝑝𝑖 = {0.5, 0.25, 0.125, 0.0625, 0.03125, 0.015625, 0.015625} a dostáváme
+𝑓HC: 𝑎1 → 0, 𝑎2 → 10, 𝑎3 → 110, 𝑎4 → 1110, 𝑎5 → 11110, 𝑎6 → 111110, 𝑎7 → 111111
+▪ Pokud 𝑝1 < 𝑝𝑛−1 + 𝑝𝑛, 𝑝𝑖 ≥ 𝑝𝑗 pro 𝑖 < 𝑗, pak kódové slovo 𝑎𝑖
+, 𝑖 = 1, … , 2
+𝑘+1 − 𝑛,
+odpovídá blokovému kódu délky 𝑘 = log2 𝑛 a délky 𝑘 + 1 pro 𝑖 = 2
+𝑘+1 − 𝑛 + 1, … , 𝑛
+– Příklad: 𝑝𝑖 = 1/𝑛
+– Pro 𝑖 = 1, … , 5 máme 𝑝𝑖 = {0.2, 0.2, 0.2, 0.2, 0.2}, tj. 𝑘 = 2 a dostáváme
+𝑓HC: 𝑎1 → 00, 𝑎2 → 01, 𝑎3 → 10, 𝑎4 → 111, 𝑎5 → 110
+KKO - Kódování a komprese dat
+23
+Vlastnosti Huffmanova kódování pro binární kódovou abecedu (m=2)
+▪ Výška kódového stromu generovaného Huffmanovým algoritmem udává délku
+nejdelšího kódu.
+– Podmínky vedoucí na nejnižší a nejvyšší Huffmanův strom jsou uvedeny na předchozím slide.
+▪ Nejnižší Huffmanův strom se vytvoří v případě, že symboly mají stejné
+pravděpodobnosti.
+– Strom je vyvážený, nebo téměř vyvážený a jeho výška je log2𝑛 .
+– Ve speciálním případě, kdy je počet symbolů 𝑛 mocninou 2 je
+výška přesně log2𝑛.
+▪ Nejvyšší Huffmanův strom se získá v případě, že pravděpodobnosti
+vedou v každém kroku na zvýšení stromu o jedna.
+– Takový strom se nazývá nevyvážený či nesouměrný (angl. unbalanced, lopsided).
+– Výška nevyváženého stromu bude rovna 𝑛 − 1 (v každém kroku zkombinujeme
+symbol získaný v předchozím kroku s dalším symbolem).
+KKO - Kódování a komprese dat
+24
+Nevyvážený Huffmanův strom
+▪ Nevyvážený Huffmanův strom maximální výšky vznikne v případě, že pravděpodobnosti
+tvoří Fibonacciho posloupnost.
+▪ Odvození:
+– Dvě nejmenší pravděpodobnosti označíme 𝑝1 = 𝑎 a 𝑝2 = 𝑏. Z principu konstrukce Huffmanova kódu
+plyne, že symboly musí mít přiřazeny pravděpodobnosti následovně:
+𝑝3 = 𝑝1 + 𝑝2 = 𝑎 + 𝑏, 𝑝4 = 𝑏 + 𝑎 + 𝑏 = 𝑝2 + 𝑝3, 𝑝5 = (𝑎 + 𝑏) + (𝑎 + 2𝑏) = 𝑝3 +
+𝑝4, atd.
+– Posloupnost odpovídá Fibonacciho posloupnosti 𝐹𝑛+1 = 𝐹𝑛−1 + 𝐹𝑛, jejíž první dva členy jsou F0 =
+𝑎, 𝐹1 = 𝑏.
+▪ Příklad:
+– Nechť 𝐹1…9 = 1, 5, 6, 11, 17, 28, 45, 73, 118 , Σ = 𝑎1, … , 𝑎9
+,
+𝑃 𝑎𝑖 =
+1
+304
+1,5,6,11,17,28,45,73,118
+– 𝑓HC: 𝑎1 → 0, 𝑎2 → 10, 𝑎3 → 110, 𝑎4 → 1110, 𝑎5 → 11110,
+𝑎6 → 111110, 𝑎7 → 1111111, 𝑎8 → 11111100, 𝑎9 → 11111101
+▪ Řešení:
+– přetvarovat strom mírnou změnou pravděpodobností symbolů
+KKO - Kódování a komprese dat
+25
+2𝑎 + 2𝑏
+3𝑎 + 4𝑏
+𝑎 + 𝑏
+5𝑎 + 7𝑏
+Kanonický Huffmanův kód
+▪ Pro danou abecedu a pravděpodobnosti existuje mnoho různých Huffmanových kódů.
+▪ Počet různých binárních Huffmanových kódových stromů pro n symbolů odpovídá 2
+𝑛−1
+– Binární Huffmanův strom pro 𝑛 symbolů má 𝑛 − 1 vnitřních uzlů. Z každého vnitřního uzlu vycházejí dvě
+hrany ohodnocené 0 a 1. Prohozením těchto dvou hodnot vznikne jiný Huffmanův kódový strom.
+▪ Algoritmus konstruuje jeden z Huffmanových kódů
+– Systematicky přiřazuje méně pravděpodobnému symbolu hodnotu 0 (typicky levá větev stromu) a více
+pravděpodobnému hodnotu 1
+▪ V praxi se používá tzv. kanonický Huffmanův kód, který existuje pro dané pravd. jediný.
+– Kratší kódová slova mají numericky menší hodnotu (alternativně lze uvažovat i vyšší), než slova delší
+– Kódová slova stejných délek jsou volena tak, aby numerické hodnoty tvořily postupně rostoucí sekvenci
+KKO - Kódování a komprese dat
+26
+Příklady Huffmanových kódů pro 𝑝 𝑎𝑖 = 0.2, 0.4, 0.2, 0.1, 0.1 :
+obecný HK
+a3
+a4
+a5
+a1
+a2
+0
+1 0
+1
+1
+0
+0 1
+HK dle algoritmu
+a3
+a4
+a5
+a1
+a2
+1
+1 0
+1
+0
+0
+1 0
+kanonický HK
+a3
+a4
+a5
+a1
+a2
+1
+0 1
+1
+0
+0
+0 1
+Kanonický Huffmanův kód (𝑓𝐶𝐻𝐶) – konstrukce
+▪ Konstrukce kanonického Huffmanova kódu, kde kratší slova mají nižší num. hodnotu
+– Nejprve zkonstruujeme Huffmanův strom a pro každý symbol 𝑎𝑖
+zjistíme délku kódové značky 𝑙𝑖
+– Seřadíme symboly vzestupně dle délky kódové značky, získáme posloupnost délek 𝑙1 ≤ 𝑙2 ≤ ⋯ ≤ 𝑙𝑛
+– Kódová slova přiřazujeme následovně: Prvnímu symbolu přiřadíme kódové slovo 𝟎
+𝑙1
+, tj. hodnotu 𝑐1 = 0
+reprezentovanou pomocí 𝑙1 bitů. Dalšímu symbolu přiřadíme kódové slovo, které bude kódovat hodnotu
+c2 = (𝑐1+1) ≪ Δ𝑙
+, kde Δ𝑙 = 𝑙2 − 𝑙1. Obecně 𝑖-tému symbolu (𝑖 ≥ 2) přiřadíme kódové slovo
+odpovídající hodnotě ci = (𝑐𝑖−1+1)2
+𝑙𝑖−𝑙𝑖−1.
+▪ Příklad:
+KKO - Kódování a komprese dat
+27
+SYMBOL ČETNOST
+a 10
+b 1
+c 15
+d 7
+SYMBOL DÉLKA
+Li
+Δl
+Ci
+KANONICKÝ
+HUFF. KÓD
+c 1 0 0 0
+a 2 1 (0+1)<<1 10
+b 3 1 (2+1)<<1 110
+d 3 0 (6+1)<<0 111 sorted
+HUFFMANŮV
+KÓD
+DÉLKA
+Li
+11 2
+100 3
+0 1
+101 3
+1
+0
+1
+0
+1
+015
+10
+7
+1
+c
+a
+d
+b
+Kanonický Huffmanův kód (𝑓𝐶𝐻𝐶
+′
+) – konstrukce (alternativa)
+▪ Konstrukce kanonického Huffmanova kódu, kde kratší slova mají vyšší num. hodnotu
+– Nejprve zkonstruujeme Huffmanův strom a pro každý symbol 𝑎𝑖
+zjistíme délku kódové značky 𝑙𝑖
+– Seřadíme symboly vzestupně dle délky kódové značky, získáme posloupnost délek 𝑙1 ≤ 𝑙2 ≤ ⋯ ≤ 𝑙𝑛
+– Kódová slova přiřazujeme následovně: Poslednímu symbolu přiřadíme kódové slovo 𝟎
+𝑙𝑛
+, tj. hodnotu
+𝑐𝑛 = 0 reprezentovanou pomocí 𝑙𝑛 bitů. Dalšímu symbolu přiřadíme kódové slovo, které bude kódovat
+hodnotu cn−1 = (𝑐𝑛+1) ≫ Δ𝑙
+, kde Δ𝑙 = 𝑙𝑛 − 𝑙𝑛−1. Obecně 𝑖-tému symbolu (𝑖 < 𝑛) přiřadíme kódové
+slovo odpovídající hodnotě ci = (𝑐𝑖+1+1)2
+𝑙𝑖+1−𝑙𝑖
+.
+▪ Příklad:
+KKO - Kódování a komprese dat
+28
+SYMBOL ČETNOST
+a 10
+b 1
+c 15
+d 7
+SYMBOL i
+DÉLKA
+Li
+Δl
+Ci
+KANONICKÝ
+HUFF. KÓD
+d 4 3 0 0 000
+b 3 3 0 (0+1)>>0 001
+a 2 2 1 (1+1)>>1 01
+c 1 1 1 (1+1)>>1 1 sorted
+HUFFMANŮV
+KÓD
+DÉLKA
+Li
+11 2
+100 3
+0 1
+101 3
+Kanonický Huffmanův kód – vlastnosti
+▪ Kanonický Huffmanův kód není Huffmanovým kódem v pravém smyslu
+– nelze jej získat přímo Huffmanovým algoritmem, nutná dvoustupňová konstrukce
+– díky zachování délek kódových slov má však kanonická forma stejné parametry (redundance, variabilita)
+▪ Kanonický Huffmanův kód zvyšuje efektivitu komprese a rychlost dekódování.
+– Do výstupního toku není nutné ukládat symboly a zvolené přiřazení kódových značek (drahé), postačí
+uložit délky kódových slov.
+– Není nutné používat stromovou strukturu s referencemi (n listů, n-1 interních uzlů, každý uzel pointer na
+levý a pravý syn a symbol), což může být nevýhodné pro abecedy s velkým počtem symbolů (např.
+kódování textu po slovech) nejen z pohledu paměťových nároků, ale efektivity procházení stromové
+struktury (malá lokalita). Pro symboly kódované stejnou délkou postačí mít uloženu jen první hodnotu a
+seznam symbolů v lexikografickém pořadí.
+KKO - Kódování a komprese dat
+29
+𝑓𝐻𝐶: 𝑎 → 000, 𝑏 → 001,
+𝑐 → 110: 𝑑 → 111,
+𝑒 → 01, 𝑓 → 10
+a b c d
+e f
+a b c d
+e f
+Σ = 𝑎, 𝑏, 𝑐, 𝑑, 𝑒, 𝑓
+𝑓𝑟𝑒𝑞(𝑎) = 10 11 12 13 22 23
+𝑓𝐶𝐻𝐶: 𝑒 → 00, 𝑓 → 01
+𝑎 → 100, 𝑏 → 101,
+𝑐 → 110: 𝑑 → 111
+𝑓𝐶𝐻𝐶
+′
+: 𝑒 → 10, 𝑓 → 11
+𝑎 → 000, 𝑏 → 001,
+𝑐 → 010: 𝑑 → 011
+Způsob uložení kódové knihy kanonického Huffmanova kódu
+▪ Jedna z výhod kanonického Huffmanova kódu je možnost využití úspornější reprezentace
+popisující přiřazení kódových slov jednotlivým symbolům (tzv. kódová kniha, angl.
+codebook).
+▪ Možnosti uložení kódové knihy u běžného Huffmanova kódu:
+– trojice (symbol, počet bitů kódové značky, kódová značka)
+– dvojice (počet bitů kódové značky, kódová značka) pokud známe předem počet symbolů a ty jsou
+seřazeny lexikograficky
+▪ V případě kanonického Huffmanova kódu známe postup, jak přiřazovat kódové značky
+– stačí uložit pouze počet bitů, z kterého lze zrekonstruovat kódová slova
+▪ Příklad: mějme Huffmanův kód 𝑓𝐻𝐶: 𝐴 → 11,𝐵 → 0, 𝐶 → 101,𝐷 → 100 a jeho
+kanonickou verzi 𝑓𝐶𝐻𝐶: 𝐴 → 10,𝐵 → 0, 𝐶 → 110,𝐷 → 111
+– Trojice pro 𝑓𝐻𝐶: ('A',2,11), ('B',1,0), ('C',3,101), ('D',3,100)
+– Dvojice pro 𝑓𝐻𝐶: (2,11), (1,0), (3,101), (3,100)
+– 𝑓𝐶𝐻𝐶: (2,1,3,3)
+KKO - Kódování a komprese dat
+30 f: Σ → 0,1
++
+Způsob uložení kódové knihy kanonického Huffmanova kódu
+KKO - Kódování a komprese dat
+31
+▪ V případě, kdy nemáme symboly sekvenčně, je možné použít alternativní způsob
+reprezentace, kdy uložíme jen ty symboly, které se používají a k nim informaci o délce,
+tzn. n-tici 𝐿 = (𝑙1, 𝑙2, … , 𝑙𝑛) následovanou m-ticí 𝐴 = (𝑎1, 𝑎2, … , 𝑎𝑚)
+– Prvek 𝐿𝑖 určuje počet symbolů, které mají kódové slovo délky 𝑖
+– Prvky 𝐴𝑖
+jsou symboly z Σ seřazené podle délek, přičemž vynecháme nepoužité symboly
+– Pokud není hodnota 𝑛 fixní, pak je nutné také uložit
+▪ Příklad pro 𝑓𝐶𝐻𝐶: 𝐴 → 10,𝐵 → 0, 𝐶 → 110,𝐷 → 111, 𝑛 = 3:
+– 𝑓𝐶𝐻𝐶: (3) (1,1,2) ('B','A','C','D')
+▪ Tento přístup je aplikován u formátu JPEG, kde se vyskytuje max. 162 symbolů abecedy
+– kódová slova mají maximálně 16 bitů, symboly jsou 8-bitové hodnoty
+l1 = 0 {}
+l2 = 1 00 -> {01}
+l3 = 2 010, 011 -> {02, 03}
+l4 = 5 1000, 1001, 1010, 1011, 1100 ->{00 (EOB) , 04, 05, 06, 11}
+Viz např.: https://www.impulseadventure.com/photo/jpeg-snoop.html
+Efektivní dekodér kanonického Huffmanova kódu
+KKO - Kódování a komprese dat
+33
+▪ Algoritmus (inicializace kódové knihy):
+– Vstup: počet kódových slov zakódovaných pomocí 𝑖 bitů,
+𝐿(𝑖) = | 𝑎 ∈ Σ ∶ 𝑓𝐶𝐻𝐶 𝑎 = 𝑖 |, kde 𝑖 = 1, … , 𝑁 a
+𝑁 = max
+𝑎∈Σ
+𝑓𝐶𝐻𝐶 𝑎
+– Výstup: 𝑓𝑖𝑟𝑠𝑡𝐶𝑜𝑑𝑒(𝑖) určující hodnotu prvního kódového
+slova délky i bitů, 𝑓𝑖𝑟𝑠𝑡𝑆𝑦𝑚𝑏𝑜𝑙(𝑖) určující index prvního
+slova z A = a1, … , a𝑚 , ai ∈ Σ, uspořádané vzestupně
+dle hodnoty kódových slov
+def FCFS(𝐿 = 𝑙1, … , 𝑙𝑁 ):
+𝑐 ← 0
+𝑠 ← 1
+for 𝑖 = 1 … 𝑁 + 1 then
+𝑓𝑖𝑟𝑠𝑡𝐶𝑜𝑑𝑒(𝑖) ← 𝑐
+𝑓𝑖𝑟𝑠𝑡𝑆𝑦𝑚𝑏𝑜𝑙(𝑖) ← 𝑠
+𝑠 ← 𝑠 + 𝑙𝑖
+𝑐 ← 𝑐 + (𝑙𝑖 − 1) + 1 ≪ 1
+Příklad: Σ = 𝑐, 𝑎, 𝑏, 𝑑 , 𝐿 𝑖 = {1,1,2}
+Viz příklad pro 𝑓𝑟𝑒𝑞(𝑎) = {10,1,15,7},
+𝑓𝐶𝐻𝐶: 𝑎 → 10, 𝑏 → 110, 𝑐 → 0, 𝑑 → 111
+i
+First
+code
+First
+symbol s c
+1 0 (0) 1 2 2
+2 2 (10) 2 3 6
+3 6 (110) 3 5 16
+4 16 (10000) 5
+c a b d
+1 2 3 4
+1 5
+0 10 110 10000
+2 3
+Σ
+FirstSymbol
+FirstCode
+5
+Efektivní dekodér kanonického Huffmanova kódu
+▪ Algoritmus (dekodér):
+– Vstup: 𝑓𝑖𝑟𝑠𝑡𝑐𝑜𝑑𝑒, 𝑓𝑖𝑟𝑠𝑡𝑠𝑦𝑚𝑏𝑜𝑙, Σ uspořádaná vzestupně
+dle hodnoty kódových slov, vstupní tok
+– Výstup: dekódovaná sekvence
+KKO - Kódování a komprese dat
+34
+def FastCHD(𝑖𝑛𝑝𝑢𝑡, 𝑜𝑢𝑡𝑝𝑢𝑡):
+c ← 0
+𝑙 ← 0
+while 𝑛𝑜𝑡 𝑒𝑜𝑓 do
+𝑙 ← 𝑙 + 1
+𝑐 ← 𝑐 ≪ 1 + readnextbit(𝑖𝑛𝑝𝑢𝑡)
+𝐢𝐟 𝑐 ≪ 1 < 𝑓𝑖𝑟𝑠𝑡𝑐𝑜𝑑𝑒𝑙+1 then
+putsymbol(𝑜𝑢𝑡𝑝𝑢𝑡, Σ𝑓𝑖𝑟𝑠𝑡𝑠𝑦𝑚𝑏𝑜𝑙 𝑙 +𝑐−𝑓𝑖𝑟𝑠𝑡𝑐𝑜𝑑𝑒 𝑙 )
+𝑙 ← 0
+𝑐 ← 0
+Příklad:
+Σ = 𝑐, 𝑎, 𝑏, 𝑑 ,
+𝑓𝑖𝑟𝑠𝑡𝑐𝑜𝑑𝑒 𝑖 = {0,2,6,16}
+𝑓𝑖𝑟𝑠𝑡𝑠𝑦𝑚𝑏𝑜𝑙 𝑖 = {1,2,3,5}
+Viz příklad pro 𝑓𝑟𝑒𝑞 = {10,1,15,7},
+𝑓: 𝑎 → 10, 𝑏 → 110, 𝑐 → 0, 𝑑 → 111
+Vstup: 110 110 0 111 10
+𝑙: 1, 2, 3, 1, 2, 3, 1, 1, 2, 3, 1, 2
+𝑐: 1, 3, 6, 1, 3, 6, 0, 1, 3, 7, 1, 2
+b b c d a
+c a b d
+1 2 3 4
+1 5
+0 2 6 16
+2 3
+Σ
+FirstSymbol
+FirstCode
+5
+1 2 3 4
+Výpočet kanonického Huffmanova kódu
+▪ Kodér se typicky implementuje pomocí datové struktury heap (hromada, halda), kterou
+lze efektivně implementovat pomocí pole pevné délky.
+▪ Heap je binární strom, ve kterém každý vnitřní uzel je asociován s dvojicí (klíč, datová
+položka) a uzly jsou uspořádány tak, že při průchodu jakoukoliv cestou z listu do kořenu
+jsou klíče uzlů na cestě v neklesajícím (max-heap) nebo nerostoucím (min-heap) pořadí.
+– Pro každý uzel platí, že jeho klíč má hodnotu větší nebo rovnu hodnotě klíče rodiče (min-heap)
+– Heap může být reprezentován bez použití ukazatelů vektorem tak, že každý uzel uložený na indexu i má
+svého levého potomka na indexu 2𝑖 a pravého potomka na indexu 2𝑖 + 1. Rodič uzlu 𝑗 je na pozici
+𝑗/2 .
+KKO - Kódování a komprese dat
+35
+5
+9 11
+13 17 20 25
+1
+2 3
+4 5 6 7
+5 9 11 13 17 20 25
+1 2 3 4 5 6 7
+i 2i 2i+1
+rodič potomci
+min-heap
+Datová struktura heap
+▪ Základní operací je odstranění kořene (extractMin, pop) a přeskládání zbývajících uzlů
+tak, abychom znovu dostali heap. Přeskládání se nazývá prosívání (angl. sifting).
+▪ Princip operace prosívání:
+– Prosívání začne přesunutím nejnižšího uzlu napravo do funkce nového kořene.
+– Kořen se porovná se svými potomky a případně se s některým z nich musí prohodit, aby bylo dodrženo
+uspořádání. Prohození může být zapotřebí více, aby se obnovila relace uspořádání. Nejvyšší počet
+prohození je roven výšce stromu, což je h = log2 𝑛 .
+▪ Příklad:
+KKO - Kódování a komprese dat
+36
+5
+9 11
+13 17 20 25
+1
+2 3
+4 5 6 7
+25
+9 11
+13 17 20
+1
+2 3
+4 5 6
+9
+25 11
+13 17 20
+1
+2 3
+4 5 6
+9
+13 11
+25 17 20
+1
+2 3
+4 5 6
+Výpočet délek kódových slov Huffmanova kódování
+▪ Algoritmus (Hirschberg – Sieminski) vypočítává délky kódů abecedy s n symboly s
+použitím jediného pole o velikosti 2n.
+– Do horní poloviny (pozice n + 1 až 2n) se uloží frekvence výskytu všech n symbolů
+– Spodní polovina pole (pozice 1 až n) se používá jako min-heap, přičemž datové položky jsou ukazatele
+(realizované indexy) na příslušné hodnoty frekvencí uložené v horní polovině.
+KKO - Kódování a komprese dat
+37
+14 12 13 10 11 9 8
+1 2 3 4 5 6 7
+25 20 13 17 9 11 5
+8 9 10 11 12 13 14
+[14]
+[12] [13]
+[10] [11] [9] [8]
+1
+2 3
+4 5 6 7
+5
+9 11
+13 17 20 25
+1
+2 3
+4 5 6 7
+klíč min-heap hodnota
+Výpočet délek kódových slov Huffmanova kódování
+▪ Princip:
+– V každé iteraci se použije heap k nalezení dvou nejnižších frekvencí a jejich náhradě součtem. Součet je
+uložen v poslední pozici hromady A[h], ukazatele nahradí dvě nejnižší frekvence a hromada se zmenší o
+jednu pozici. Cyklus probíhá tak dlouho, dokud se hromada neredukuje na jediný ukazatel.
+KKO - Kódování a komprese dat
+38
+14 12 13 10 11 9 8
+1 2 3 4 5 6 7
+25 20 13 17 9 11 5
+8 9 10 11 12 13 14
+12 10 13 8 11 9
+1 2 3 4 5 6 7
+25 20 13 17 9 11 5
+8 9 10 11 12 13 14
+7 10 13 8 11 9 14
+1 2 3 4 5 6 7
+25 20 13 17 7 11 7
+8 9 10 11 12 13 14
+extractMin
+A[14] = 5
+A[7]= 5 + A[12] = 14
+A[1]=A[12]=A[14]=7
+13 10 7 8 11 9 14
+1 2 3 4 5 6 7
+25 20 13 17 7 11 7
+8 9 10 11 12 13 14
+sifting
+Výpočet délek kódových slov Huffmanova kódování
+▪ Na konci tvoří heap jediná položka A[0]=2 s počtem 100. Délky kódových značek se určí pomocí
+průchodu ukazatelů odzadu.
+– Např. symbol 14: A[14]=7 => A[7]=5 => A[5]=>3 => A[3] = 2 = root = 4 bity; A[8]=3=>A[3]=2 = root = 2 bity
+KKO - Kódování a komprese dat
+39
+6 11 7 8 9 24 14
+1 2 3 4 5 6 7
+25 20 6 17 7 6 7
+8 9 10 11 12 13 14
+extractMin
+A[13] =11
+A[6]= 11 + A[10] = 24
+A[1]=A[13]=A[10]=7
+13 10 7 8 11 9 14
+1 2 3 4 5 6 7
+25 20 13 17 7 11 7
+8 9 10 11 12 13 14
+sifting
+10 11 7 8 9 14
+1 2 3 4 5 6 7
+25 20 13 17 7 11 7
+8 9 10 11 12 13 14
+7 11 6 8 9 24 14
+1 2 3 4 5 6 7
+25 20 6 17 7 6 7
+8 9 10 11 12 13 14
+2 100 2 2 3 4 5
+1 2 3 4 5 6 7
+3 4 6 5 7 6 7
+8 9 10 11 12 13 14
+Výpočet délek kódových slov Huffmanova kódování
+▪ Algoritmus
+– Dává algoritmus kódování s minimální variancí?
+▪ Příklad:
+Vstup: freq = [10,1,15,7], symb = ['a','b','c','d']
+h=[(1, 5), (7, 7), (15, 6), (10, 4)]
+m= 4
+a (1, 5) b (7, 7)
+h [(8, 3), (15, 6), (10, 4)]
+hr [None, None, None, None, None, 3, None, 3]
+m= 3
+a (8, 3) b (10, 4)
+h [(15, 6), (18, 2)]
+hr [None, None, None, 2, 2, 3, None, 3]
+m= 2
+a (15, 6) b (18, 2)
+h [(33, 1)]
+hr [None, None, 1, 2, 2, 3, 1, 3]
+Výstup: bitlen [2, 3, 1, 3]
+KKO - Kódování a komprese dat
+40
+def HClen(freq):
+m = len(freq)
+h, hr, bitlen = [], [None]*(2*m), [0]*m
+for i, f in enumerate(freq): #init heap
+heapq.heappush(h, (f, m + i))
+while m>1: #perform Hirschberg-Sieminski
+a = heapq.heappop(h)
+b = heapq.heappop(h)
+m = m - 1
+hr[a[1]] = hr[b[1]] = m
+heapq.heappush(h, (a[0] + b[0], m))
+for i in range(len(freq)): #determine code lengths
+j = hr[len(freq)+i]
+l = 1
+while j>1:
+j = hr[j]
+l += 1
+bitlen[i] = l
+return bitlen
+Princip komprese binárních dat pomocí Huffmanova kódu
+▪ Algoritmus:
+– Abychom nemuseli ukládat délku souboru, používá se speciální symbol EOF
+– Výstup doplníme do násobku osmi bitů např. nulami
+KKO - Kódování a komprese dat
+41
+def compressHC(infile, bitout):
+#určení počtu výskytů jednotlivých ASCII hodnot 0-255
+freqs = get_frequencies(infile)
+#přidání EOF symbolu s počtem výskytů 1
+freqs[256] = 1
+enc = HuffmanEncoder(bitout)
+#výpočet délek, sestavení kanonického kódu
+enc.codetree = CanonicalHuffmanCode(freqs)
+#uložení max. 256 8-bitových délek, tj. 2048 bitů!
+enc.write_code_len_table()
+#kódování symbol po symbolu
+while not eof:
+b = infile.read(1)
+enc.write(ord(b))
+enc.write(256) # EOF
+Praktické problémy HK
+▪ Vstupní abeceda obsahující malý počet symbolů
+– Řešení: rozšířený HK
+▪ Délka kódových značek
+– Řešení: truncated HK
+▪ Latence a lokální koncentrační vlastnost dat
+– Řešení: adaptivní HK
+KKO - Kódování a komprese dat
+42
+Rozšířený Huffmanův kód
+▪ Průměrná délka Huffmanova kódování je shora ohraničena hodnotou
+𝐻 𝑋 + 𝑝𝑚𝑎𝑥 + 0.086 (Gallager, 1978)
+– Dle Shannonovy věty platí 𝐻 𝑋 ≤ 𝐿 𝑋 ≤ 𝐻 𝑋 + 𝑝𝑚𝑎𝑥 + 0.086, což zaručuje dobré výsledky
+▪ Nicméně s klesajícím počtem symbolů vstupní abecedy účinnost metody klesá
+– Mějme např. 𝑃 = (0.8,0.18,0.02) a 𝑓𝐻𝐶 = (0,10,11), pak 𝐿 = |𝑓𝐻𝐶| = 1.2,
+𝐻(𝑋) = 0.816 < 𝐿 < 𝐻(𝑋) + 0.8 + 0.086 a 𝑅 = 0.384 (38.4%)
+– Extrémní případ je Σ = Γ = {0,1}, kde nedosahujeme žádné komprese třebaže stále platí uvedený vztah
+▪ Řešením je kódovat vstupní symboly po n-ticích, tzn. uvažujeme rozšířený zdroj 𝑋
+𝑛
+– Příklad: Pokud budeme pro 𝑃 = (0.8,0.18,0.02) kódovat dvojice symbolů, pak máme abecedu velikosti
+9 prvků s 𝐿 = 1.7228/2 = 0.8614 a 𝑅 = 0.045 (4.5%)
+▪ Máme-li abecedu 𝐴, pak rozšířená abeceda řádu 𝑚 odpovídá
+𝐴
+𝑚 = 𝐴 × 𝐴 × ⋯ × 𝐴 = 𝑎1𝑎1 … 𝑎1, 𝑎1𝑎1 … 𝑎1𝑎2, … , 𝑎𝑛𝑎𝑛 … 𝑎𝑛
+– kde 𝐴 × 𝐴 je kartézský součin 𝐴. Pokud uvažujeme nezávislé jevy se stejným rozložením
+pravděpodobnosti, pak 𝑃(𝑎𝑖
+𝑚) = ς𝑗=1
+𝑚 𝑃(𝑎𝑖𝑗
+𝑚). Získáme tedy n
+𝑚 nových symbolů.
+KKO - Kódování a komprese dat
+43
+m-krát m symbolů
+Alternativní řešení: n-ární Huffmanovo kódování
+▪ Huffmanovo kódování není omezeno pouze na binární abecedu a lze jej snadno
+aplikovat i na kódové abecedy s více než dvěma prvky.
+– Přenosová média jsou typicky analogového charakteru a dovolují vyjádřit více než dvě hodnoty (např.
+různá úroveň amplitudy, různá fáze sinusovek, …). Komunikace může být efektivnější, pokud máme k
+dispozici více kódových symbolů. Výhodné např. pro zvýšení přenosové kapacity komunikačních linek
+(optické, bezdrátové spojení).
+▪ Místo dvou symbolů s nejmenší pravděpodobností nahrazujeme 𝑚′
+symbolů (viz
+algoritmus HC)
+– 𝑚′ odpovídá počtu symbolů kódové abecedy Γ = 𝑚 s výjimkou první iterace, kde 2 ≤ 𝑚′ ≤ 𝑚 volíme
+tak, abychom v dalších iteracích měly vždy k dispozici požadovaný počet symbolů.
+– Příklad: Pokud m=3 a máme 6 symbolů, tak po první iteraci a odebrání 3 symbolů bychom měli 6-3+1=4
+symboly. Po druhé 4-3+1=2 a poslední iteraci už není možné dokončit. Proto v první iteraci vezmeme 2
+symboly.
+KKO - Kódování a komprese dat
+46
+n-ární Huffmanovo kódování
+▪ Příklad ternárního kódování:
+– Nechť 𝑃(𝑖) = 0.15, 0.15, 0.2, 0.25,0.25 , pak
+– 𝐹𝐻𝐶 = 2 × 0.25 + 3 × 0.15 + 3 × 0.15 + 2 × 0.20 + 2 × 0.25 = 2.3 bits/symbol.
+– 𝐹3𝐻𝐶 = 2 × 0.15 + 2 × 0.15 + 2 × 0.20 + 1 × 0.25 + 1 × 0.25 = 1.5 trits/symbol
+KKO - Kódování a komprese dat
+47
+0
+1
+0 1 2
+0 1 2
+Huffmanovy kódy omezené délky
+▪ V praxi se setkáváme s potřebou omezit maximální délku kódových značek
+– Nejdelší kódové slovo může být pro abecedu s 𝑛 symboly 𝑛 − 1 bitů dlouhé. Velké abecedy (např.
+kódování po slovech) by vedly na dlouhá kódová slova a zvýšené nároky na uchování kódové knihy.
+▪ Důvody:
+– Snaha omezit velikost kódové knihy.
+– Díky odhadu rozložení z omezeného množství dat mohou být některé pravděpodobnosti podhodnocené
+a blízké nule.
+– Omezit maximální počet kroků potřebných na dekódování. Má vliv na propustnost a je zásadní např. v
+oblasti multimédií a telekomunikací.
+– Praktická implementace Hiersberg-Sieminsky (256-bitový datový typ pro 8-bitové symboly)
+▪ Přístupy:
+– Truncated Huffman coding (suboptimální)
+– Hirschberg-Larmore: A fast algorithm for optimal length-limited Huffman codes 1990
+KKO - Kódování a komprese dat
+48
+Golin, Zhang A Dynamic Programming Approach To Length-Limited Huffman Coding arXiv:0806.4899
+Truncated Huffman coding
+▪ Truncated Huffman coding představuje kompromis mezi složitostí kodéru a redundancí výsledného
+kódování.
+▪ Princip:
+– Nahradit 2
+𝑐
+symbolů s nejmenší pravděpodobností virtuálním symbolem 𝑥.
+– Pomocí Huffmanova algoritmu zjistit kódová slova pro redukovanou sadu symbolů.
+– Kódové slovo přiřazené virtuálnímu symbolu 𝑥 použít jako prefix pro 2
+𝑐
+symbolů.
+▪ Příklad:
+– Uvažujme 10 symbolů abecedy, 𝑃 𝑎 = 0.2,0.14,0.12,0.12,0.1,0.1,0.08,0.07,0.05,0.02 ,
+max. délka kódové značky 4 bity => 𝑐 = 2. Určíme 𝑃𝑥 = 0.08 + 0.07 + 0.05 + 0.02 = 0.22.
+– 𝐻 = 3.149, 𝑓truncHC = 3 ⋅ 0.2 + 0.14 + 0.12 + 0.12 + 0.1 + 0.1 + 4 ⋅ 𝑃𝑥= 3.22, 𝑅 =
+3.22−3.149
+3.149
+= 2%
+KKO - Kódování a komprese dat
+49
+𝑥
+HW implementace reálného kodéru
+▪ Matai et. al Energy Efficient Canonical Huffman Encoding, 2014
+– Filter module only passes symbols with non-zero frequencies
+– Create Tree module builds the Huffman tree
+– The Compute Bit Len module calculates the bit lengths of each codeword.
+– The Truncate Tree module rebalances the Huffman tree when it is very tall and/or unbalanced. This
+improves decoder speed at the cost of a slight increase in encoding time.
+– Canonize module creates two sorted lists. The first list contains symbols and frequencies sorted by
+symbol. The second list contains symbols and frequencies sorted by frequency. These lists are used for
+faster creation of the canonical Huffman codewords.
+– The Create Codeword module creates uniquely decodable codewords.
+KKO - Kódování a komprese dat
+50
+Adaptivní Huffmanovo kódování
+▪ Pokud není známo rozdělení pravděpodobností předem, Huffmanovo kódování se stává
+dvouprůchodovou metodou.
+– první průchod: nashromáždění statistik, bufferování dat, druhý průchod: konstrukce kódových slov
+▪ Adaptivní (dynamické) Huffmanovo kódování – jednoprůchodová varianta, která
+nepotřebuje znát pravděpodobnosti předem, neboť se určují a aktualizují průběžně, jak
+přicházejí vstupní symboly
+– výhodné pokud lokální pravděpodobnosti v datech vykazující odlišné charakteristiky oproti globálním
+– vhodné pro multimédia, telekomunikaci, kde není možné použít dvouprůchodovou metodu
+▪ Typicky se používá zrcadlená struktura kodéru a dekodéru
+KKO - Kódování a komprese dat
+52
+def AdaptiveHuffmanEncoder():
+initHuffmanTree()
+while not EOF:
+c = getchar()
+encode(c)
+updateHuffmanTree(c)
+def AdaptiveHuffmanDecoder():
+initHuffmanTree()
+while not EOF:
+c = decode()
+output(c)
+updateHuffmanTree(c)
+Adaptivní Huffmanovo kódování
+▪ Možnosti inicializace stromu (initHuffmanTree)
+1. Naplnit strom všemi symboly abecedy a všem symbolům přiřadit četnost jedna
+▪ Výhody: netřeba řešit problém s prvním výskytem symbolu (každý symbol má vždy přiřazeno kódové slovo)
+▪ Nevýhody: pomalá adaptace (viz opakující se symbol A u abecedy s 256 symboly)
+2. Začít s „prázdným“ stromem, do kterého se postupně budou přidávat symboly (viz FGK, Vitter)
+▪ Výhody: rychlá adaptace, menší redundance, výhodné zejména pokud je použito jen málo symbolů abecedy
+▪ Nevýhody: je třeba se vypořádat s prvním výskytem symbolu
+▪ Aktualizaci stromu je možné provádět (updateHuffmanTree)
+1. naivně, tj. s každým načteným symbolem
+▪ Výhody: efektivní z pohledu redundance
+▪ Nevýhody: nepraktické z důvodu značné výpočetní náročnosti (každý symbol vyvolá aktualizaci sl. O(n))
+2. pravidelně, např. každých 1000 symbolů
+▪ Výhody: výrazně nižší výpočetní náročnost (1000 x)
+▪ Nevýhody: snížená kompresní účinnost
+3. pokud jsou kódy nevyvážené (např. při změně pořadí symbolů z důvodů změny četnosti)
+4. pomocí FGK (Faller, Gallagher, Knuth) algoritmu, který řeší problém efektivní aktualizace stromu
+5. pomocí Vitterova algoritmu (efektivnější oproti FGK, vede na nižší redundanci)
+KKO - Kódování a komprese dat
+53
+Inicializace stromu – varianta s plně inicializovaným stromem
+▪ Huffmanův strom je typicky inicializován pomocí dohodnutého mechanismu, který musí
+být znám kodéru i dekodéru.
+▪ Máme-li abecedu 𝑁 symbolů a každému přiřadíme počet výskytů roven jedné, pak na
+počátku získáme strom přiřazující každému symbolu binární kód délky log2𝑁 bitů (viz
+ukázky nejnižšího a nejvyššího Huffmanova stromu).
+▪ Omezení: Lze aplikovat pouze pokud počet různých symbolů je předem znám.
+– Např. při kódování binárních dat víme, že ve vstupním toku se vyskytuje max. 256 různých hodnot.
+▪ Nevýhoda: Adaptace může být relativně pomalá zejména u velkých abeced.
+– Aby se kódové slovo neustále opakujícího se symbolu zkrátilo z log2𝑁 bitů na 1 bit, musí se symbol na
+vstupu vyskytnout alespoň 𝑁/2 krát.
+▪ Nevýhoda: Pokud se na vstupu vyskytuje jen malé množství různých symbolů, nutnost
+mít ve stromu všechny symboly zhoršuje kompresní účinnost
+– Všem značkám musí být přiřazen kód určité délky.
+KKO - Kódování a komprese dat
+54
+Inicializace stromu – varianta s plně inicializovaným stromem
+KKO - Kódování a komprese dat
+55
+▪ Příklad pro 𝑁 = Σ = 16, Σ = A, … , P , vstupní tok 𝑠 = AB𝑛
+– 1011,11111,110,110,10,10,10,10,0,0,0,…. až od osmého výskytu B se začnou používat kódová slova
+délky 1 bit, R=3 + 4+2x2+4x1=15 bitů na prvních 8 symbolů
+symbol freq(a) fHC(a)
+A 1 1011
+B 1 1100
+C 1 1010
+D 1 0111
+E 1 1101
+F 1 1000
+G 1 1001
+H 1 1110
+I 1 1111
+J 1 0000
+K 1 0001
+L 1 0010
+M 1 0011
+N 1 0100
+O 1 0101
+P 1 0110
+symbol freq(a) fHC(a)
+A 2 110
+B 1 11111
+C 1 0000
+D 1 0001
+E 1 0010
+F 1 0011
+G 1 0100
+H 1 0101
+I 1 0110
+J 1 0111
+K 1 1000
+L 1 1001
+M 1 1010
+N 1 1011
+O 1 1110
+P 1 11110
+symbol freq(a) fHC(a)
+A 2 101
+B 2-3 110
+C 1 11101
+D 1 11110
+E 1 11111
+F 1 0000
+G 1 0001
+H 1 0010
+I 1 0011
+J 1 0100
+K 1 0101
+L 1 0110
+M 1 0111
+N 1 1000
+O 1 1001
+P 1 11100
+symbol freq(a) fHC(a)
+A 2 011
+B 4-7 10
+C 1 11000
+D 1 11001
+E 1 11010
+F 1 11011
+G 1 11100
+H 1 11101
+I 1 11110
+J 1 11111
+K 1 0000
+L 1 0001
+M 1 0010
+N 1 0011
+O 1 0100
+P 1 0101
+symbol freq(a) fHC(a)
+A 2 1001
+B 8+ 0
+C 1 11101
+D 1 11100
+E 1 11111
+F 1 11110
+G 1 10111
+H 1 10110
+I 1 11011
+J 1 11000
+K 1 11010
+L 1 11001
+M 1 10101
+N 1 10100
+O 1 10001
+P 1 10000
+Inicializace stromu – varianta s jedním uzlem
+▪ Abychom co nejvíce minimalizovali režii adaptivní implementace, je výhodnější začít s
+prázdným stromem a postupně do něj vkládat nově příchozí symboly.
+▪ Problém: symbol, který ještě není ve stromu, nemá přiřazeno kódové slovo
+– jak dekodér rozliší, zda-li se jedná o nový symbol nebo kódové slovo symbolu v listovém uzlu stromu?
+▪ NYT symbol (0-node) se speciálním významem
+– Pokud symbol není ve stromu, tak se vyšle kódové slovo odpovídající NYT (not yet transmitted) symbolu
+následované hodnotou nového symbolu kódovanou fixním počtem bitů. Uzel NYT se rozdělí na nový
+uzel NYT (levý potomek) a list s nově načteným symbolem (pravý potomek).
+– Pokud symbolu NYT přiřadíme nízkou a konstantní váhu (četnost výskytu), pak bude vytlačován častěji
+se vyskytujícími symboly a režie bude malá. Kódové slovo NYT symbolu se postupně prodlužuje s každou
+aktualizací stromu.
+▪ Počáteční Huffmanův strom obsahuje dva symboly – NYT a první symbol vstupu
+– Hodnota prvního symbol je zapsána přímo do výstupního toku a je kódována fixním počtem bitů
+– Pro kódování nových symbolů a prvního symbolu je možné použít tzv. zfázovaný binární kód (angl.
+phased-in binary code)
+KKO - Kódování a komprese dat
+56
+Vsuvka: Phased-in binary code
+▪ Motivace: Předpokládejme abecedu Σ = 𝑎1, … , 𝑎𝑁 . Máme-li 𝑁 symbolů, kódová slova kódu
+fixní délky musí mít log2𝑁 bitů. Je-li 2
+𝑚 ≤ 𝑁 < 2
+𝑚+1
+, pak log2𝑁 není celé číslo a v případě
+běžného binárního kódování musíme použít log2𝑁 bitů a ne všechny kombinace využijeme.
+▪ Kódování phased-in binary code přiřazuje hodnotám kódovou značku délky buď 𝑚 nebo 𝑚 + 1
+bitů. Cílem je získat kódování jehož průměrná délka se blíží log2𝑁.
+– Určíme hodnotu celého čísla 𝑚 tak, aby 2
+𝑚 ≤ 𝑁 < 2
+𝑚+1
+a určíme 𝑟 = 𝑁 − 2
+𝑚.
+– Prvních 2𝑟 symbolů se kóduje pomocí (𝑚 + 1)-bitového čísla v rozsahu hodnot 0 až 2𝑟 − 1.
+– Zbývajících 𝑁 − 2𝑟 symbolů se kóduje pomocí 𝑚-bitového čísla tak, že kód 𝑎𝑘 odpovídá 𝑘 − 𝑟 − 1.
+▪ Phased-in binární kódování je jednoznačně dekódovatelné
+– Platí, že σ𝑖=1…𝑁 2
+−𝐿𝑖 = 2𝑟 ⋅ 2
+− 𝑚+1 + 𝑁 − 2𝑟 ⋅ 2
+−𝑚 = 𝑟2
+−𝑚 + 𝑁 − 2𝑟 2
+−𝑚 = 2
+−𝑚 𝑁 − 𝑟 =
+2
+−𝑚 𝑁 − 𝑁 + 2
+𝑚 = 1, tzn. je splněna Kraft-McMillanova nerovnost.
+– Dekodér nejprve načte 𝑚 bitů a pokud je hodnota menší než 𝑟, načte ještě chybějící bit. Načtená hodnota
+odpovídá po převodu a přičtení jedničky hodnotě symbolu.
+▪ Příklad:
+– Nechť N=26, pak m=4 a r=10.
+– Symbol 𝑎1se zakóduje jako 00000, 𝑎2 jako 00001, 𝑎20 jako 10011, 𝑎21 jako 1010 a 𝑎26 pomocí 1111
+– 𝐿𝑎𝑣𝑔 =
+1
+26
+20 ⋅ 5 + 6 ⋅ 4 = 4.77, log2𝑁 = 4.70
+KKO - Kódování a komprese dat
+57
+Inicializace stromu – varianta s jedním uzlem
+▪ Příklad pro 𝑁 = Σ = 16, Σ = A, … , P , tzn. 𝑚 = 4, 𝑟 = 0, vstupní tok 𝑠 = AB𝑛
+– Strom obsahuje symbol NYT, ke kterému se po přečtení prvního symbolu přidá symbol A. Na výstup je
+zapsán přímo 4-bitový binární kód symbolu.
+– V dalším kroku se přidá uzel B a postupně zvyšující se váha modifikuje Huffmanův strom
+– Výstup: 0000 ('A'),0,0001('B'),01,0,0,0,0,0,…. Již od druhého výskytu B se začnou používat kódová slova
+délky 1 bit (rychlejší adaptace), R= 4 + 5 + 1=10 bitů na první 3 symboly (nižší redundance)
+KKO - Kódování a komprese dat
+58
+symbol freq(a) fHC(a)
+NYT 0 0
+A 1 1
+symbol freq(a) fHC(a)
+NYT 0 10
+B 1 11
+A 1 0
+symbol freq(a) fHC(a)
+NYT 0 00
+B 2 1
+A 1 01
+symbol freq(a) fHC(a)
+NYT 0 00
+B 3+ 1
+A 1 01
+Aktualizace stromu – při změně pořadí
+▪ Zjistit, zda-li jsou kódové značky nevyvážené je možné například pomocí detekce změn
+vzájemného pořadí jednotlivých symbolů.
+▪ Detekovat změnu pořadí lze efektivně pokud budeme udržovat dva seznamy o délce
+odpovídající počtu symbolů abecedy každý
+– forward index (FI), který udržuje pro každý symbol ukazatel (index) do druhého seznamu
+– druhý seznam obsahuje pro každý symbol dvojici (symbol, počet výskytů symbolu)
+▪ Algoritmus:
+– Začínáme lineárním mapováním s inicializací všech počtů na hodnotu 1.
+– Pro načtený symbol zjistíme z FI index příslušné položky a zvýšíme počet výskytů.
+– Porovnáme, jestli počet výskytů je vyšší než počet výskytů předcházející
+položky a pokud ano, provedeme výměnu s předchozí položkou a aktualizujeme
+forward index (prohodíme hodnoty na odpovídajících dvou indexech). Výměnu
+provádíme tak dlouho, dokud nezískáme seřazený seznam (viz Bubble sort,
+symbol probublává směrem nahoru).
+– Pokud došlo k alespoň jedné výměně, provedeme přepočítání Huffmanova
+stromu.
+▪ Experimentální výsledky na textových souborech Calgary Corpus:
+– Huffmanův strom se přepočítá pro 2-5% načtených symbolů
+KKO - Kódování a komprese dat
+59
+Porovnání účinnosti jednotlivých přístupů
+Uvažujme abecedu 256-ti různých ASCII symbolů, vstupní řetězec 𝑠 = abcdef 100
+▪ Entropie:
+– 𝐻(𝑆) = log26 = 2.585
+▪ Statické Huffmanovo kódování:
+– 𝑓𝐶𝐻𝐶: 𝑎 → 111, 𝑏 → 100, 𝑐 → 110, 𝑑 → 00, 𝑒 → 101, 𝑓 → 01, 𝑓𝐶𝐻𝐶 = 2.67 bitů na symbol, výstupní
+tok včetně hlavičky: 2.8 bitů na symbol
+▪ Adaptivní Huffmanovo kódování:
+– Algoritmus FGK (NYT): 2.88 bitů na symbol
+KKO - Kódování a komprese dat
+60
+Způsob inicializace stromu Způsob aktualizace bitů na symbol Počet aktualizací
+NYT + první symbol Po každém symbolu (naivní) 3.36 600
+256 symbolů, uniformní Po každém symbolu (naivní) 3.87 600
+256 symbolů, uniformní Pokud počet je mocnina 2 4.09 36
+256 symbolů, uniformní Při změně pořadí 7.01 6
+256 symbolů, uniformní Při změně pořadí nebo mocnina 2 4.06 36
+Porovnání účinnosti jednotlivých přístupů
+Uvažujme abecedu 256-ti různých ASCII symbolů, vstup 'paper1' (Calgary Corpus, 52 kB)
+▪ Entropie:
+– 𝐻(𝑆) = 4.983
+▪ Statické Huffmanovo kódování:
+– 𝑓𝐶𝐻𝐶 = 5.017 bitů na symbol, výstupní tok včetně hlavičky: 5.034 bitů na symbol
+▪ Adaptivní Huffmanovo kódování:
+– Algoritmus FGK (NYT): 5.0327 bitů na symbol
+KKO - Kódování a komprese dat
+61
+Způsob inicializace stromu Způsob aktualizace bitů na symbol Počet aktualizací
+NYT + první symbol Po každém symbolu 5.0350 53161
+256 symbolů, uniformní Po každém symbolu 5.0516 53161
+256 symbolů, uniformní Pokud počet je mocnina 2 5.0558 613
+256 symbolů, uniformní Při změně pořadí 5.0520 2038
+256 symbolů, uniformní Při změně pořadí nebo mocnina 2 5.0518 2606
+Adaptivní Huffmanovo kódování
+▪ Algoritmus FGK (Faller, Gallager, Knuth) využívá tzv. sourozenecké vlastnosti (angl. sibling
+property) Huffmanova stromu
+– Algoritmus funguje na principu vkládání symbolů do stromu a v případě, že se detekuje porušení
+sourozenecké vlastnosti, provede se přeuspořádání stromu tak, aby byla sourozenecká vlastnost
+zachována.
+– Gallager dokázal, že binární prefixový kód je Huffmanovým kódem právě
+tehdy, když má odpovídající kódovací strom sourozeneckou vlastnost.
+▪ Binární strom má sourozeneckou vlastnost jestliže
+1. každý uzel (s výjimkou kořenového) má sourozence a
+2. uzly lze seřadit (podle ohodnocení daného uzlu) do monotónní posloupnosti
+tak, že má každý uzel v posloupnosti za souseda svého sourozence.
+KKO - Kódování a komprese dat
+62
+3
+Adaptivní Huffmanovo kódování
+▪ Říkáme, že Huffmanův strom je lexikograficky uspořádaný, pokud
+1. hrana vedoucí k potomku s menší četností má přiřazenu hodnotu 0,
+2. všechny uzly v hloubce 𝑑 mají menší četnosti výskytu (ohodnocení)
+než uzly v hloubce 𝑑 − 1 a
+3. uzly v stejné hloubce jsou uspořádány do neklesající posloupnosti.
+▪ Důsledek sourozenecké vlastnosti Huffmanova stromu:
+– Všem uzlům je možné přiřadit číslo od 1 do 2𝑁 − 1 (𝑁 odpovídá velikosti
+abecedy, hodnota 2𝑁 − 1 je přiřazena kořenovému uzlu) tak, že každá
+dvojice uzlů s čísly 2𝑖 − 1 a 2𝑖 (𝑖 = 1 … 𝑁 − 1) má společného rodiče
+a pro četnosti přiřazené uzlům platí 𝑓𝑟𝑒𝑞1 ≤ 𝑓𝑟𝑒𝑞2 ≤ … ≤ 𝑓𝑟𝑒𝑞2𝑁−1.
+– Strom splňující podmínku sourozenecké vlastnosti je lexikograficky
+uspořádaný strom.
+KKO - Kódování a komprese dat
+63
+počet výskytů
+symbolu
+(ohodnocení uzlu)
+číslo uzlu
+9 = 2N-1
+Algoritmus FGK – aktualizace stromu
+KKO - Kódování a komprese dat
+64
+▪ Požadavek, aby byly frekvence na všech úrovních seřazeny zleva doprava je umělý.
+Principiálně není nutný, ale zjednoduší se proces aktualizace stromu.
+▪ Algoritmus FGK navržený Gallagerem pracuje s plně inicializovaným stromem, avšak je
+možné jej zobecnit na variantu s jedním NYT uzlem (viz dále).
+▪ Aktualizace stromu probíhá rekurzivně a začíná v listovém uzlu načteného symbolu.
+Nechť S je listový uzel odpovídající načtenému symbolu.
+1. Nechť T je bezprostřední následovník uzlu S. Pokud 𝑓𝑟𝑒𝑞(S) < 𝑓𝑟𝑒𝑞(T),
+pak uzly jsou uspořádané. V opačném případě se prohodí uzel S nejpravějším
+uzlem X (operace swap), pro který platí, že 𝑓𝑟𝑒𝑞(X) = 𝑓𝑟𝑒𝑞(S). Uzel X
+může být ve stejné či nižší hloubce (viz ukázka). Nikdy nesmí dojít k
+prohození se svým rodičem.
+2. Čítač počtu výskytů uzlu S se zvýší na 𝑓𝑟𝑒𝑞(S) = 𝑓𝑟𝑒𝑞(S) + 1
+3. Nyní se přejde do nového rodiče uzlu S (tj. původní rodič X provedla-li se
+výměna), tj. S = 𝑟𝑜𝑜𝑡(S) a kroky 1 až 3 se opakují pro rodičovský uzel.
+Cyklus končí jakmile narazíme na kořenový uzel.
+S
+T X
+všechny ostatní symboly
+(Not Yet Transmitted)
+operace
+swap(S,X)
+Algoritmus FGK – aktualizace stromu
+▪ Princip aktualizace stromu s poč. stavem 1,2,2,2,3,4,7,9,16, Σ = A, B, C, D, E , pro AAAA
+KKO - Kódování a komprese dat
+66
+Algoritmus FGK – aktualizace stromu
+▪ Princip aktualizace stromu s poč. stavem 1,2,2,2,3,4,7,9,16 pro AAAAAAAAAA
+KKO - Kódování a komprese dat
+67
+…
+Algoritmus FGK – aktualizace stromu s jedním uzlem
+▪ Pořadí uzlů je zachováno pokud přiřadíme hodnoty
+čísel následovně:
+– NYT uzel bude mít vždy přiřazenu nejnižší hodnotu, kořenový
+uzel nejvyšší hodnotu
+– Počáteční hodnota čísla NYT uzlu je rovna 2𝑁 − 1.
+▪ Pokud se načte symbol, který není ve stromu, pak
+– Z listového NYT uzlu majícího číslo 𝑖 se stane uzel vnitřní se
+dvěma potomky, kterým se přiřadí čísla 𝑖 − 2 a 𝑖 − 1.
+Všechny tři uzly budou mít nulové ohodnocení.
+– Potomek 𝑖 − 2 odpovídá novému listovému NYT uzlu,
+potomek 𝑖 − 1 listovému uzlu načteného symbolu.
+KKO - Kódování a komprese dat
+68
+Uzly se stejným
+ohodnocením
+(počty výskytů)
+Algoritmus FGK – aktualizace stromu s jedním uzlem
+▪ Příklad: uvažujme abecedu N=26 symbolů a vstupní řetězec 𝑠 = 𝐚𝐚𝐫𝐝𝐯
+strom obsahuje 2N-1=51 uzlů, výstup: 0 00000 ('a') 1 0 10001 ('r') 00 00011 ('d') 000 1011 ('v')
+KKO - Kódování a komprese dat
+70
+Algoritmus FGK – kodér
+Algoritmus kodéru
+▪ Kodér začíná s jediným uzlem (NYT),
+kterému je přiřazena váha 0
+▪ Následně je načten symbol ze vstupu.
+– Pokud se jedná o nový symbol, na výstup je
+zapsáno kódové slovo odpovídající NYT
+následované indexem symbolu (phased
+code)
+– Pokud se jedná o symbol ve stromu, pak se
+na výstup zapíše kódové slovo, které získáme
+průchodem od kořene směrem k listu
+▪ Poté je volán algoritmus pro aktualizaci
+stromu, který
+– Zajistí rozdvojení NYT v případě nového
+symbolu
+– Inkrementaci uzlů a modifikaci pořadí uzlů
+tak, aby byla zaručena sourozenecká
+vlastnost
+KKO - Kódování a komprese dat
+71
+Algoritmus FGK
+– dekodér
+Algoritmus dekodéru ▪ Dekodér začíná také s jediným uzlem
+(NYT), kterému je přiřazena váha 0
+▪ Následně je postupně vstup čten bit po
+bitu a dle hodnot bitů se pohybujeme ve
+stromu (0
+– levá větev, 1
+– pravá větev) tak
+dlouho, než narazíme na listový uzel – Pokud se jedná o NYT uzel, načteme index
+nového symbolu.
+– Pokus se jedná o uzel symbolu, pak se na
+výstup zapíše odpovídající symbol
+▪ Poté je volán algoritmus pro aktualizaci
+stromu, který – Zajistí rozdvojení NYT v případě načtení
+nového symbolu
+– Inkrementaci uzlů a modifikaci pořadí uzlů tak,
+aby byla zaručena sourozenecká vlastnost
+KKO
+- Kódování a komprese dat
+72
+2 Read 𝑚 bits
+𝑚
+≤ |Σ|
+Is the
+𝑚
+-bit number
+𝑝
+less than
+𝑟
+?
+Algoritmus V – Vitter a efektivita FGK
+▪ Vitter (1986) navrhl vylepšení FGK algoritmu označované jako algoritmus V, který
+dosahuje vyšší účinnosti komprese.
+– Vitter ukázal, že algoritmus produkuje v nejhorším případě méně než 𝑆 + 𝑡 bitů, zatímco FGK může
+produkovat až 2𝑆 + 𝑡 bitů, kde 𝑆 je průměrný počet bitů na symbol, kterého je možné dosáhnout
+pomocí statického Huffmanova kódování a 𝑡 je délka vstupu.
+– Později bylo dokázáno, že FGK v nejhorším případě dává dvojnásobný počet bitů na symbol v porovnání
+se semistatickou verzí Huffmanova kódování (Milidiu, Laber and Pessoa, 2000)
+▪ Princip: zavedení tvrdší podmínky na pořadí uzlů s cílem udržovat strom s minimálními
+možnými délkami kódových značek a co nejmenší maximální délkou kódové značky.
+– všechny listové uzly váhy w musí předcházet všechny interní uzly váhy w
+▪ Při výměně uzlů se mohou vyměnit pouze uzly stejné váhy a stejného typu (tj. pouze
+listové nebo pouze interní).
+– Průchod stromem v pořadí uzlů produkuje alternující sekvenci listových a vnitřních uzlů
+▪ Algoritmus používá implicitní uspořádání uzlů
+– uzly jsou očíslovány postupně podle hloubky a v každé hloubce zleva doprava.
+▪ Detailní popis algoritmu viz Algorithm 673: Dynamic Huffman coding
+– https://dl.acm.org/citation.cfm?id=214390
+KKO - Kódování a komprese dat
+73
+Porovnání efektivity FGK a V algoritmu
+▪ Tvar kódového stromu pro vstupní řetězec „aa bbb c“
+– Strom získaný V algoritmem má nejen nižší výšku (3 vs. 4) ale i celkovou délku značek (12 vs. 14).
+– V případě, že další symbol bude c, na výstup se zapíše 001 (vs. 1101 v případě FGK)
+KKO - Kódování a komprese dat
+74
+Strom získaný FGK algoritmem
+Strom získaný algoritmem V
+Algoritmus V – aktualizace stromu
+▪ Pokud se načte symbol, který není ve
+stromu, pak
+– Z listového NYT uzlu se stane uzel vnitřní se
+dvěma potomky – levý NYT uzel, pravý symbol.
+Oba s nulovým ohodnocením. Přesuneme se
+na původní NYT uzel a poznačíme si, že je
+nutné aktualizovat také pravého potomka.
+▪ Pokud pro symbol existuje uzel ve stromu
+– Provedeme výměnu uzlu s nejpravějším uzlem
+bloku (tzv. leader). Blokem rozumíme uzly
+stejného typu se stejným ohodnocením.
+– Pokud se jedná o sourozence NYT uzlu,
+poznačíme si, že je nutné jej aktualizovat a
+přesuneme se na rodiče uzlu.
+▪ Aktualizujeme strom
+– Postupně voláme operaci SlideAndIncrement
+pro rodiče dokud nenarazíme na kořen stromu.
+– Pro označený uzel zavoláme operaci
+SlideAndIncrement, která provede finální
+uspořádání.
+KKO - Kódování a komprese dat
+75
+def Update_TreeVITTER(symbol):
+leafToIncrement = NULL;
+p = pointer to symbol’s node;
+if ( p == NULL ): /* a new symbol */
+Create two leaf children of the 0-node,
+such that the right child is the new
+symbol node and the left child is
+the new 0-node;
+p = parent of the symbol node;
+leafToIncrement = the right child of p;
+else:
+Swap p in the tree with the leader of its block;
+if ( p is the sibling of the 0-node ):
+leafToIncrement = p;
+p = parent of p;
+while ( p != root of the tree ):
+/* if possible, advance p to the next block. */
+p = SlideAndIncrement( p )
+if ( leafToIncrement != NULL ):
+SlideAndIncrement(leafToIncrement);
+Algoritmus V – operace SlideAndIncrement
+▪ Operace SlideAndIncrement je založena
+na cyklickém posuvu uzlů tak, aby se
+aktivní uzel dostal na správnou pozici a
+bylo zachováno požadované
+uspořádání.
+▪ Pro vnitřní uzel s ohodnocením 𝑤 se
+provede cyklický posuv uzlů tak, aby se
+uzel dostal za listové uzly váhy 𝑤 + 1
+▪ Pro listový uzel s ohodnocením 𝑤 se
+provede cyklický posuv uzlů tak, aby se
+uzel dostal před uzly s ohodnocením 𝑤
+▪ Následně se zvýší ohodnocení uzlu a
+přechází se na rodičovský uzel
+původního uzlu (vnitřní uzel) nebo
+rodičovský uzel uzlu po cyklickém
+posuvu.
+KKO - Kódování a komprese dat
+76
+def SlideAndIncrement ( accept node p ):
+fp = parent of p;
+w = p’s weight;
+if ( p is an internal node ):
+Slide p in the tree higher than
+the leaf nodes of weight w+1;
+else:
+Slide p in the tree higher than
+the nodes of weight w;
+p’s weight = p’s weight + 1;
+if (p is an internal node):
+p = fp
+else:
+p = new parent of p
+return p
+Princip SlideAndIncrement
+▪ Pro vnitřní uzel s ohodnocením 𝑤 se provede cyklický posuv uzlů vlevo tak, aby se uzel
+dostal za listové uzly s ohodnocením 𝑤 + 1. Následně se inkrementuje ohodnocení uzlu
+a přechází se na rodičovský uzel původního uzlu.
+– Uzel 3: 𝑤 = 0
+KKO - Kódování a komprese dat
+77
+Algoritmus V – aktualizace stromu s jedním uzlem
+KKO - Kódování a komprese dat
+78
+▪ Příklad: uvažujme abecedu N=26 symbolů a vstupní řetězec 𝑠 = 𝐚𝐚𝐫𝐝𝐯𝐚𝐫𝐤
+strom obsahuje 2N-1=51 uzlů, výstup: 0 00000 ('a') 1 0 10001 ('r') 00 00011 ('d’) 110 01011 ('v') 11 01
+Stromy pro první tři aktualizace jsou totožné s FGK
+Porovnání tvaru stromu pro jednotlivé algoritmy
+▪ Řetězec aardvark
+KKO - Kódování a komprese dat
+79
+Adaptivní algoritmus FGK
+Semistatický
+Huffmanův algoritmus
+Adaptivní algoritmus Vitter Semistatický
+Huffmanův algoritmus
+(min variance)
+Praktické problémy Huffmanova kódování
+▪ Přeplnění čítače a změna měřítka
+– Hodnoty četností se uchovávají v proměnných s pevným počtem bitů a může dojít k přetečení. Pole s
+16-bitovými položkami bez znaménka může střádat počty až do 65 535.
+– Možností je sledovat ohodnocení kořene při každé inkrementaci a když dosáhne maximální hodnoty,
+provést změnu měřítka (rescale) všech čítačů frekvence podělením 2 (celočíselné dělení).
+– Jinou možností je použít pole 32-bitových hodnot, kde k přetečení nebude docházet tak často.
+– Po změně měřítka mají nové symboly větší vliv než staré (počítané před změnou měřítka). Ukazuje se, že
+to je příznivé, protože ze zkušenosti se ví, že pravděpodobnost výskytu symbolu závisí více na
+bezprostředně předcházejícím symbolu, než na symbolu, který se vyskytl v daleké minulosti.
+▪ Přeplnění kódu
+– Dalším problémem je přeplnění kódu v důsledku dlouhých kódových značek. Kodér prochází stromem a
+střádá jednotlivé bity v nějaké proměnné pevného počtu bitů, neboť jsou potřeba na výstup zapsat v
+opačném pořadí. Pokud je počet bitů nedostatečný, může dojít k vyčerpání předtím, než narazí na
+listový uzel.
+– Jednou možností je použít vázaný seznam, to však může být pomalé.
+KKO - Kódování a komprese dat
+80
+Aritmetické kódování
+▪ Aritmetické kódování (Elias, 1960; Abramson 1963) je nejefektivnější kódování, které
+umí dosáhnout meze entropie.
+– první praktické realizace: Rissanen (76), Pasco (76), Rubin (79), Moffat (98) a Witten (87).
+▪ Princip: problém přidělování kódů celočíselné délky jednotlivým symbolům se eliminuje
+tak, že se přidělí jeden kód (velmi dlouhý) celému vstupnímu toku x1
+x2….xk
+.
+– Vstupní řetězec chápeme jako tok nekonečné délky
+– Dovoluje použití neceločíselného počtu bitů na symbol 𝑓 𝑥1𝑥2 … . 𝑥𝑘 = 𝛼𝑘, kde 𝛼 ∈ ℝ
+– Výstupem je hodnota v intervalu [0, 1]
+▪ Vlastnosti mapování
+– Musí záviset na pravděpodobnosti výskytů symbolů
+– Musí být sestaveno v průběhu kódování (není nutné
+a priori znát všechna mapování)
+KKO - Kódování a komprese dat
+81
+Sekvence:
+x1
+x2….xk
+0.0
+1.0
+0.64857821
+Aritmetické kódování
+▪ Princip:
+– Metoda startuje s určitým intervalem – např. [0,1), čte vstupní řetězec symbol po symbolu a používá
+pravděpodobnosti výskytu jednotlivých symbolů k zužování intervalu.
+– Pro každý symbol 𝑥𝑖
+vstupní sekvence se rozdělí interval podle pravděpodobností výskytů symbolů
+abecedy 𝑝1
+, 𝑝2
+, … 𝑝𝑛
+a následně se již pracuje pouze s tím podintervalem, kterému přísluší vstup 𝑥𝑖
+– Kódem je číslo z intervalu, který jsme obdrželi po 𝑘 krocích.
+▪ Důsledky
+– Výstupem je hodnota, která jednoznačně identifikuje konečný interval => jednoznačná dekódovatelnost
+– Specifikace užšího intervalu vyžaduje další desetinná místa => délka binární reprezentace hodnoty,
+kterou algoritmus konstruuje průběžně roste.
+▪ Pravděpodobnosti výskytu symbolů
+– mohou být během kódování konstantní (statická varianta aritmetického kódování)
+– se mohou měnit (adaptivní varianta aritmetického kódování)
+KKO - Kódování a komprese dat
+82
+Aritmetické kódování
+▪ Kumulativní distribuční funkce (CDF) diskrétní náhodné proměnné 𝑋 ∈ {𝑎1, 𝑎2, 𝑎3} :
+KKO - Kódování a komprese dat
+83
+𝐹𝑋(𝑥)
+𝑎1 𝑎 𝑥 2 𝑎3
+0.4
+0.9
+1.0
+𝑃(𝑋 = 𝑎1) = 0.4, 𝑃(𝑋 = 𝑎2) = 0.5, 𝑃(𝑋 = 𝑎3) = 0.1
+𝐹𝑋(𝑥)
+𝑎1 𝑎 𝑥 2 𝑎3
+0.7
+0.8
+1.0
+𝑃 𝑋 = 𝑎1 = 0.7, 𝑃 𝑋 = 𝑎2 = 0.1, 𝑃(𝑋 = 𝑎3) = 0.2
+𝐹𝑋 𝑥 = 𝑃 𝑋 ≤ 𝑥 = ෍
+𝑥𝑖≤𝑥
+𝑃(𝑋 = 𝑥𝑖)
+0.8 = b0.110011001100110…
+0.7 = b0.101100110011001… 0.4 = b0.011001100110011…
+0.9 = b0.111001100110011…
+Aktualizace intervalu
+▪ Pro každý nový symbol je nutné
+– určit dolní (𝑙) a horní (𝑢) mez nového intervalu a
+– rozdělit interval dle pravděpodobnosti výskytu jednotlivých symbolů
+▪ Inicializace:
+▪ Aktualizace:
+KKO - Kódování a komprese dat
+84
+𝑙
+(0) = 0 𝑢
+(0) = 1
+𝑙
+(𝑛) = 𝑙
+(𝑛−1) + 𝑢
+𝑛−1 − 𝑙
+𝑛−1 𝐹𝑋(𝑝𝑟𝑒𝑣(𝑥𝑛))
+𝑢
+(𝑛) = 𝑙
+(𝑛−1) + 𝑢
+𝑛−1 − 𝑙
+𝑛−1 𝐹𝑋(𝑥𝑛)
+z předchozího intervalu z pravd. modelu
+Σ = {𝑎1, 𝑎2, … , 𝑎𝑘}
+𝑠 = 𝑥1𝑥2𝑥3 ⋯ 𝑥𝑘, 𝑥𝑖 ∈ Σ
+𝐹𝑋(⊥) = 0
+𝑝𝑟𝑒𝑣 𝑎𝑖 = ቊ
+⊥ pokud i=1
+𝑎𝑖−1 jinak
+Aktualizace intervalu – vlastnosti
+▪ Jaká je nejmenší hodnota, kterou může mít 𝑙
+(𝑛)
+?
+▪ Jaká je největší hodnota, kterou může mít 𝑢
+(𝑛)
+?
+▪ Pro aktualizaci intervalu platí , což je důležitá
+podmínka pro zajištění jednoznačné dekódovatelnosti
+– Rozdělení intervalu na základě znalosti 𝐹𝑋 umožní jednoznačné dekódování
+KKO - Kódování a komprese dat
+85
+𝑙
+(𝑛) = 𝑙
+(𝑛−1) + 𝑢
+𝑛−1 − 𝑙
+𝑛−1 𝐹𝑋(𝑝𝑟𝑒𝑣(𝑥𝑛))
+>0 ≥0
+𝑙
+(𝑛) ≥ 𝑙
+(𝑛−1)
+𝑢
+(𝑛) = 𝑙
+(𝑛−1) + 𝑢
+𝑛−1 − 𝑙
+𝑛−1 𝐹𝑋(𝑥𝑛)
+≤1
+𝑢
+(𝑛) ≤ 𝑢
+(𝑛−1)
+𝑙
+𝑛
+, 𝑢
+𝑛 ⊆ 𝑙
+𝑛−1
+, 𝑢
+𝑛−1
+=>
+=>
+Aritmetické kódování – příklad
+▪ Nechť p(A)=0.4, p(B)=0.5, p(C)=0.1 Mějme zakódovat vstupní sekvenci: BBBC…
+KKO - Kódování a komprese dat
+86
+A
+B
+C
+0.0
+0.4
+0.9
+1.0
+A
+B
+C
+0.4
+0.6
+0.85
+0.9
+A
+B
+C
+0.6
+0.7
+0.825
+0.85
+A
+B
+C
+0.7
+0.75
+0.8125
+0.825
+A: [0.4, 0.6) 0.4 + 0.5×0.4 = 0.6
+B: [0.6, 0.85) 0.4 + 0.5×0.9 = 0.85
+C: [0.85, 0.9)
+A: [0, 0.4)
+B: [0.4, 0.9)
+C: [0.9, 1.0)
+range = 0.5 range = 0.25 range = 0.125
+A: [0.7, 0.75) 0.7 + 0.125×0.4 = 0.75
+B: [0.75, 0.8125) 0.7 + 0.125×0.9 = 0.8125
+C: [0.8125, 0.825)
+Aritmetické kódování – příklad
+▪ Mějme zakódovat vstupní sekvenci: BBBC
+– Abychom odeslali BBBC, stačí zakódovat libovolnou z hodnot 𝑣
+ležící ve vypočteném intervalu, tj. 0.8125 ≤ 𝑣 < 0.825
+KKO - Kódování a komprese dat
+87
+𝑥 𝑝(𝑥)
+Opt. # bitů
+log2(1/𝑝)
+Huffmanovo
+kódování
+A 0,4 1,3219 10
+B 0,5 1,0000 0
+C 0,1 3,3219 11
+A
+B
+C
+0.7
+0.75
+0.8125
+0.825
+𝑎
+binární
+reprezentace
+0,8125 0,1101
+0,8250 0,1101001100…
+4 bity pro aritmetické kódování
+vs
+5 bitů pro Huffmanovo kódování
+Dekódování zprávy
+▪ Dekódování zprávy 1101
+KKO - Kódování a komprese dat
+88
+A
+B
+C
+0.0
+0.4
+0.9
+1.0
+1 → ቊ
+0,11111111 … = 1
+0,10000000 … = 0,5
+Po prvním bitu
+nelze dekódovat
+Víme, že první
+symbol nebude A
+Musíme načíst
+další bit
+11 → ቊ
+0,11111111 … = 1
+0,11000000 … = 0,75
+110 → ቊ
+0,110111111 … = 0,875
+0,110000000 … = 0,75
+A
+B
+C
+0.0
+0.4
+0.9
+1.0
+Po druhém bitu
+nelze stále
+dekódovat.
+Musíme načíst
+další bit
+A
+B
+C
+0.0
+0.4
+0.9
+1.0
+Můžeme
+dekódovat
+první symbol
+B
+Rozdělíme
+interval [0.4, 0.9)
+a pokračujeme
+A
+B
+C
+0.4
+0.6
+0.85
+0.9
+▪ Dekódování zprávy 1101
+Dekódování zprávy
+KKO - Kódování a komprese dat
+89
+Nelze
+dekódovat,
+musíme načíst
+další bit
+110 → ቊ
+0,110111111 … = 0,875
+0,110000000 … = 0,75
+A
+B
+C
+0.4
+0.6
+0.85
+0.9
+1101 → ቊ
+0,110111111 … = 0,875
+0,110100000 … = 0,8125
+Nelze dekódovat,
+! musíme načíst
+další bit
+nebo
+dekódování
+zastavit
+A
+B
+C
+0.4
+0.6
+0.85
+0.9
+11010 → ቊ
+0,110101111 … = 0,84375
+0,110100000 … = 0,8125
+Můžeme
+dekódovat
+druhý symbol
+B
+Rozdělíme
+interval [0.6, 0.85)
+a pokračujeme
+A
+B
+C
+0.4
+0.6
+0.85
+0.9
+A
+B
+C
+0.6
+0.7
+0.825
+0.85
+range = 0.25
+Dekódování zprávy
+▪ Dekódování zprávy 1101
+KKO - Kódování a komprese dat
+90
+110100 → ቊ
+0,1101001111 … = 0,828125
+0,1101000000 … = 0,8125
+11010 → ቊ
+0,110101111 … = 0,84375
+0,110100000 … = 0,8125
+A
+B
+C
+0.6
+0.7
+0.825
+0.85
+Nelze
+dekódovat,
+! musíme načíst
+další bit
+nebo
+dekódování
+zastavit
+1101000 → ቊ
+0,11010001111 … = 0,8203125
+0,11010000000 … = 0,8125
+Nelze
+dekódovat
+A
+B
+C
+0.6
+0.7
+0.825
+0.85
+Můžeme
+dekódovat
+třetí symbol
+B
+Rozdělíme
+interval [0.7, 0.825)
+a pokračujeme A
+B
+C
+0.7
+0.75
+0.8125
+0.825
+range = 0.125
+Můžeme
+dekódovat
+čtvrtý symbol
+C
+Rozdělíme
+interval [0.8125, 0.825)
+a pokračujeme nebo
+skončíme ?
+Alternativní způsob dekódování
+▪ Alternativně je možné využít vztahu
+▪ Příklad: Dekódování zprávy 1101 => 13/16
+KKO - Kódování a komprese dat
+91
+(0 − 0)Τ0,4 = 0
+A
+B
+C
+0.0
+0.4
+0.9
+1.0
+(0,8125 − 0,4)Τ0,5 = 0,825
+𝑥1=B
+(0,825 − 0,4)Τ0,5 = 0,85
+𝑥2=B
+(0,85 − 0,4)Τ0,5 = 0,9
+𝑥3=B
+(0,9 − 0,9)Τ0,1 = 0
+𝑥4=C
+(0 − 0)Τ0,4 = 0
+𝑐𝑜𝑑𝑒 = (𝑐𝑜𝑑𝑒 − 𝑙𝑜𝑤)Τ𝑟𝑎𝑛𝑔𝑒 𝑙𝑜𝑤 = 𝐹𝑋 (𝑝𝑟𝑒𝑣(𝑥𝑛)) 𝑟𝑎𝑛𝑔𝑒 = 𝐹𝑋 𝑥𝑛 − 𝐹𝑋 (𝑝𝑟𝑒𝑣(𝑥𝑛))
+Reprezentace intervalu
+▪ Problémy
+– Binární reprezentace desetinných čísel může vést na nekonečný počet bitů. Pro daný interval [𝑙, 𝑢)
+potřebujeme získat hodnotu na co nejmenší počet bitů
+▪ Např. 1Τ3 = 0.33ത = 0.010101010101, nebo 2Τ3 = 0.66ത = 0.10101010
+– Práce s desetinnými čísly by vyžadovala mít k dispozici aritmetiku s nekonečnou přesností
+– Operace dělení je z výpočetního hlediska velmi drahá operace
+▪ Praktická řešení
+– QM kodér (binární reprezentace, násobení a dělení nahrazeno posuvy), použito v JPEG
+– Intervalové kódování
+KKO - Kódování a komprese dat
+92
+Naivní implementace
+▪ Struktura kodéru:
+– initializace l,u
+– zpracování symbolu (update l,u)
+– získání výsledné hodnoty
+▪ Pro stanovení binární
+reprezentace lze využít Lemma:
+– ∀𝑙, 𝑠 ≥ 0 taková, že 𝑙 + 𝑠 < 1 platí,
+že zaokrouhlením hodnoty 𝑙 + 𝑠/2
+na prvních − log2 𝑠 + 1 bitů
+získáme hodnotu v rozsahu
+𝑙, 𝑙 + 𝑠 ; přičemž platí následující
+rovnost:
+− log2 𝑠 + 1 = log2 2/𝑠
+KKO - Kódování a komprese dat
+93
+class ArithmeticCoder:
+def __init__(self, frequency_table=None, code=None):
+self.l, self.u = Decimal(0.0), Decimal(1.0) #current interval bouif frequency_table: self._updfreqtab(frequency_table)
+if code: self.code = Decimal(int(value,2))/Decimal(2**len(code))
+def _updfreqtab(self, frequency_table):
+"""Calculate CDF"""
+ffrom = Decimal(0.0)
+self.cumintervals = {a:(ffrom, ffrom:=ffrom+b) for a,b in
+frequency_table.items()}
+self.scale = Decimal(1.0)/ffrom
+def encode(self, symbol, frequency_table=None):
+"""Encode one symbol"""
+if frequency_table: self._updfreqtab(frequency_table)
+range = (self.u - self.l)*self.scale
+self.l, self.u = self.l + range*self.cumintervals[symbol][0],
+self.l + range*self.cumintervals[symbol][1]
+def finish(self):
+"""Return binary string"""
+s = self.u - self.l
+bits = int(ceil(log(2/s,2)))
+s = (self.l + s/2) * (1<<bits)
+bb = bin(int(s))[2:]
+while len(bb)<bits: bb = '0' + bb
+return bb
+def encodestring(self, string):
+for ch in string:
+self.encode(ch)
+return self.finish()
+> encoded_msg = ArithmeticCoder(frequency_table=
+{'a':4, 'b':5, 'c':1}).\
+encodestring("bbbc")
+> print(encoded_msg)
+11010001
+Naivní implementace
+▪ Struktura dekodéru:
+– inicializace (načtení kódu, CDF)
+– dekódování symbolu ležícím v
+intervalu daným kódem a update
+kódu
+– dekódujeme dokud nezískáme
+řetězec požadované délky
+KKO - Kódování a komprese dat
+94
+class ArithmeticCoder:
+def __init__(self, frequency_table=None, code=None):
+self.l, self.u = Decimal(0.0), Decimal(1.0)
+if frequency_table: self._updfreqtab(frequency_table)
+if code: self.code = Decimal(int(code,2))/Decimal(2**len(code))
+def _updfreqtab(self, frequency_table):
+"""Calculate CDF"""
+ffrom = Decimal(0.0)
+self.cumintervals = {a:(ffrom, ffrom:=ffrom+b) for a,b in
+frequency_table.items()}
+self.scale = Decimal(1.0)/ffrom
+def decode(self, frequency_table=None):
+"""Decode one symbol"""
+if frequency_table: self._updfreqtab(frequency_table)
+code = self.code/self.scale
+for ch,(l,h) in self.cumintervals.items():
+if l <= code < h:
+self.code = (code - l)/(h-l)
+return ch
+return None
+def decodestring(self, code, length):
+self.code = Decimal(int(code,2))/Decimal(2**len(code))
+s = ''
+for i in range(length):
+s += self.decode()
+return s
+> decoded_msg = ArithmeticCoder(frequency_table=
+{'a':4, 'b':5, 'c':1}).\
+decodestring('11010001', 4)
+> print(decoded_msg)
+"bbbc"
+Generické využití AC v PPM
+▪ V kombinaci s vhodným prediktorem (zde
+PPM) je možné dále zvýšit kompresní účinnost
+▪ Příklad:
+– Uvažujme řetězec 41 znaků
+abababababababababababababababababab
+ababc
+– Aritmetické kódování: 48 bitů + tabulka četností
+– PPM řádu 2: 26 bitů
+KKO - Kódování a komprese dat
+95 class PPM:
+ESC = 256
+EOF = 257
+def encodestring(string, N=3, symbols='abc'):
+ctxs = {None: {sym: 1 for sym in set(symbols)}}
+#uniform distribution of symbols
+ctxs[None][PPM.EOF] = 1
+ae = ArithmeticCoder(ctxs[None])
+def update(ctx, ch):
+if not ch in ctx: ctx[ch] = 0
+ctx[ch] += 1
+def encode(ch, freq):
+if ch in freq: ae.encode(ch, freq)
+for i,ch in itertools.chain(enumerate(string),
+[(len(string), PPM.EOF)]):
+ctx = string[max(i-N,0):i]
+while (not ctx in ctxs) or (not ch in ctxs[ctx]):
+if (not ctx in ctxs): ctxs[ctx] = {}
+encode(PPM.ESC, ctxs[ctx])
+update(ctxs[ctx], PPM.ESC)
+update(ctxs[ctx], ch)
+ctx = None if ctx == '' else ctx[1:]
+encode(ch, ctxs[ctx])
+update(ctxs[ctx], ch)
+if ctx == None:
+del(ctxs[ctx][ch])
+return ae.finish()
+> msg = "ab"*20 + "c"
+> freq_table = collections.Counter(msg)
+Counter({'a': 20, 'b': 20, 'c': 1})
+> ArithmeticCoder(freq_table).encodestring(msg)
+010011111111000000000011001100101000111110111101
+(48 bits)
+> PPM.encodestring(msg, 2)
+00010010101010011011100011
+(26 bits)
+Příklad PPM řád 2
+▪ Uvažujme řetězec 41 znaků ababababababababababababababababababababc
+KKO - Kódování a komprese dat
+96
+0 - p(ESC|-)=0 p(a)=1/4
+1 a p(ESC|a)=0 p(ESC|-)=1/2 p(b)=1/3
+2 ab p(ESC|ab)=0 p(ESC|b)=0 p(a|-)=1/4
+3 ba p(ESC|ba)=0 p(b|a)=1/2
+4 ab p(a|ab)=1/2
+5 ba p(b|ba)=1/2
+6 ab p(a|ab)=2/3
+7 ba p(b|ba)=2/3
+8 ab p(a|ab)=3/4
+9 ba p(b|ba)=3/4
+10 ab p(a|ab)=4/5
+11 ba p(b|ba)=4/5
+12 ab p(a|ab)=5/6
+13 ba p(b|ba)=5/6
+14 ab p(a|ab)=6/7
+15 ba p(b|ba)=6/7
+16 ab p(a|ab)=7/8
+17 ba p(b|ba)=7/8
+18 ab p(a|ab)=8/9
+19 ba p(b|ba)=8/9
+20 ab p(a|ab)=9/10
+21 ba p(b|ba)=9/10
+22 ab p(a|ab)=10/11
+23 ba p(b|ba)=10/11
+24 ab p(a|ab)=11/12
+25 ba p(b|ba)=11/12
+26 ab p(a|ab)=12/13
+27 ba p(b|ba)=12/13
+28 ab p(a|ab)=13/14
+29 ba p(b|ba)=13/14
+30 ab p(a|ab)=14/15
+31 ba p(b|ba)=14/15
+32 ab p(a|ab)=15/16
+33 ba p(b|ba)=15/16
+34 ab p(a|ab)=16/17
+35 ba p(b|ba)=16/17
+36 ab p(a|ab)=17/18
+37 ba p(b|ba)=17/18
+38 ab p(a|ab)=18/19
+39 ba p(b|ba)=18/19
+40 ab p(ESC|ab)=1/20 p(ESC|b)=1/2 p(ESC|-)=2/5 p(c)=1/2
+41 bc p(ESC|bc)=0 p(ESC|c)=0 p(ESC|-)=3/7 p(EOF)=1/1
+{'a': 1, 'b': 1, 'c': 1, 'EOF': 1}
+Asymmetric Numeral Systems (ANS)
+▪ Princip ANS (Jaroslaw Duda, 2007-2014) je velmi podobný tomu, jak funguje aritmetické
+kódování, ale místo práce s intervalem, se pracuje s celočíselným stavem, který je
+aktualizován s každým načteným symbolem.
+– Jedna stavová proměnná místo dvou hranic intervalu
+– Symboly s různou pravděpodobností přispívají různě k rychlosti růstu hodnoty stavu.
+– Stav typicky omezen na pevnou bitovou šířku, při renormalizaci se zapisují bity do výstupu
+▪ Kompresní účinností je technika srovnatelná s aritmetickým kódováním (také se snaží
+používat pravděpodobnosti aniž by došlo k aproximaci), avšak s výkonností Huffmanova
+kódování (lze implementovat pomocí tabulky).
+▪ Algoritmy
+– uABS (2006) – binární vstupní abeceda
+– rANS (2013) – stav se aktualizuje výpočtem, vhodné pro velké vstupní abecedy
+– tANS (2007) – stav je určen náhledem do tabulky a to vč. renormalizace, vhodné pro malé abecedy
+▪ Implementace
+– Facebook Zstandard, Apple LZFSE, NVIDIA nvCOMP (2022), Dropbox DivANS, JPEG XL (redukce 1/3)
+KKO - Kódování a komprese dat
+99
+https://encode.su/threads/2078-List-of-Asymmetric-Numeral-Systems-implementations
+Motivace
+▪ Uvažujme vstupní abecedu s dvěma symboly Σ = {𝑎, 𝑏} , P(𝑎) = 0.01, P(𝑏) = 0.99
+KKO - Kódování a komprese dat
+100
+Huffmanovo kódování (1952)
+– rychlé (>300MB/s/core)
+– vyžaduje řazení, algoritmus bez násobení
+– aproximuje P 𝑠 ~2
+−𝑟
+(0.5)
+– 𝟏 bit/symbol
+Aritmetické kódování (~1976)
+– pomalé (>100MB/s/core)
+– vyžaduje násobení
+– snaha zachytit P 𝑠 co nejpřesněji
+– ~𝟎. 𝟎𝟖 bit/symbol
+tANS (2007)
+– rychlé (>500MB/s/core)
+– vhodné pro malé modely, fixní distribuce
+– umožňuje šifrování
+– snaha zachytit P 𝑠 co nejpřesněji
+– ~𝟎. 𝟎𝟖 bit/symbol
+rANS (2013)
+– rychlé (>500MB/s/core)
+– vhodné pro velké modely, adaptivní
+distribuce
+– snaha zachytit P 𝑠 co nejpřesněji
+– ~𝟎. 𝟎𝟖 bit/symbol
+https://www.dropbox.com/s/usmm3gafmp0vqso/ANSposter.pdf
+Rychlost dekódování/core Intel i7 rok 2013 rok 2016
+přibližné algoritmy (Huffman) ~ 300 MB/s ~ 1000 MB/s
+přesné algoritmy (aritm. kódování, ANS) ~ 50 MB/s ~ 1500 MB/s
+Princip kódování s využitím stavu – binární kód
+▪ Předpokládejme binární vstupní abecedu. Mějme informaci uloženou v hodnotě 𝑥, nyní
+chceme přidat další bit informace 𝑠 ∈ {0,1}. Jak bude vypadat nová hodnota 𝑥′?
+▪ Binární kódování: 𝑥
+′
+= 𝑥 ≪ 1 + 𝑠 = 2𝑥 + 𝑠
+▪ Rozklad
+– Ν𝑠=0 = 0,2,4,6,8,10,12,14, …
+– Ν𝑠=1 = {1,3,5,7,9,11,13,15, … }
+– symetrické binární kódování
+KKO - Kódování a komprese dat
+101
+𝑥
+𝑥′
+(𝑠 = 0)
+𝑥′
+(𝑠 = 1)
+0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
+0 2 4 6 8 10 12 14 16 18 20 22 24 26 28 30
+1 3 5 7 9 11 13 15 17 19 21 23 25 27 29 31
+▪ Předpokládejme binární vstupní abecedu. Mějme informaci uloženou v hodnotě 𝑥, nyní
+chceme přidat další bit informace 𝑠 ∈ {0,1}. Předpokládejme, že P(0)=1/4
+▪ ANS kódování: 𝑥
+′ ≈ 𝑥/P 𝑠
+▪ Rozklad
+– Ν𝑠=0 = 0,4,8,12, …
+– Ν𝑠=1 = {1,2,3,5,6,7,9,10,11,13,14,15, … }
+– asymetrické binární kódování
+0 4 8 12 16 20 24 28 32 36 40 44 48 52 56 60
+1 2 3 5 6 7 9 10 11 13 14 15 17 18 19 21
+Princip kódování s využitím stavu – ANS
+KKO - Kódování a komprese dat
+102
+𝑥
+𝑥′
+(𝑠 = 0)
+𝑥′
+(𝑠 = 1)
+0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
+1 2 3 5 6 7 9 10 11 13 14 15 17 18 19 21
+𝑥
+′
+=
+𝑥
+P 𝑠
++ 𝑠
+Princip kódování s využitím stavu – binární kód
+▪ Rozklad pro BIN
+▪ Jak rychle roste hodnota stavu v závislosti na symbolu 𝑠?
+– 𝑠 = 0 → +2,
+– 𝑠 = 1 → +2
+▪ Kolik hodnot stavu 𝑥 v rozsahu [0, 𝑘 − 1] je přiřazeno určitému symbolu?
+– 𝑠 = 0 →
+1
+2
+𝑘
+– 𝑠 = 1 → 𝑘 −
+1
+2
+𝑘
+▪ Hodnota stavu roste stejně rychle nezávisle na symbolu. Počet hodnot stavu je pro oba
+symboly shodný.
+– Co tento výsledek implikuje z hlediska pravděpodobnosti P(s)?
+KKO - Kódování a komprese dat
+103
+NBIN 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
+𝑥
+′ ≈ 𝑥/P 𝑠
+Princip kódování s využitím stavu – ANS
+▪ Rozklad pro ANS, P(0)=1/4
+▪ Jak rychle roste hodnota stavu v závislosti na symbolu 𝑠?
+– 𝑠 = 0 → +4,
+– 𝑠 = 1 → +1/+2, průměrně o 1.25
+▪ Kolik hodnot stavu 𝑥 v rozsahu [0, 𝑘 − 1] je přiřazeno určitému symbolu?
+– 𝑠 = 0 →
+1
+4
+𝑘
+– 𝑠 = 1 → 𝑘 −
+1
+4
+𝑘
+▪ Hodnota stavu roste pomaleji pro s=1. Počet hodnot stavu je vyšší pro s=1, v poměru
+3/4 ku 1/4.
+▪ Interpretace stavu: Hodnota x=13 odpovídá 10 výskytům s=1 a cca 4 výskytům s=0
+– poměr 10/14, 4/14
+KKO - Kódování a komprese dat
+104
+NANS 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
+Efektivita ANS kódování
+▪ Pokud budeme předpokládat, že hodnota 𝑥 obsahuje log2 𝑥 bitů informace, pak nový
+stav 𝑥
+′ odpovídá log2 𝑥′ bitům informace.
+▪ Aktualizace stavu pro ANS: x′ ≈ 𝑥/P 𝑠
+log2 𝑥′ = log𝑥 𝑥/P(𝑠) = log2 𝑥 + log2 1/P(𝑠)
+▪ Množství informace přidané zakódováním symbolu 𝑠, který se vyskytuje s
+pravděpodobností P 𝑠 odpovídá log2 1/P(𝑠), tedy informačnímu obsahu dle
+Shannonovi definice.
+KKO - Kódování a komprese dat
+105
+Kódování a dekódování
+▪ Kódování: ▪ Dekódování
+KKO - Kódování a komprese dat
+106
+▪ Vlastnosti:
+– kódování a dekódování je založeno na vyčíslováním aritmetického výrazu
+– nepotřebujeme zavádět symbol EOF nebo ukládat délku
+– Kódování a dekódování musí probíhat zrcadlově (symboly dekódujeme v opačném pořadí)
+– Incializujeme výchozí stav 𝑥0 = 1.
+– Postupně aplikujeme kódovací funkci
+x
+′
+= 𝐶(𝑥, 𝑠) na jednotlivé symboly tak, že
+𝑥𝑖 = 𝐶 𝑥𝑖−1, 𝑠𝑖
+– Jakmile zpracujeme všech 𝑛 symbolů,
+uložíme stav 𝑥𝑛 do souboru.
+– Načteme stav 𝑥𝑛 ze souboru.
+– Dekódujeme postupně pomocí dekódovací
+funkce (x, s) = 𝐷(𝑥′) jednotlivé symboly.
+– Pokud narazíme na stav s hodnotou 1,
+dekódování ukončíme.
+Princip kódování s využitím stavu
+▪ Mějme zakódovat vstupní sekvenci 01111, počáteční stav 𝑥0 = 1
+– Binary
+– ANS
+KKO - Kódování a komprese dat
+107
+𝑥
+𝑥′
+(𝑠 = 0)
+𝑥′
+(𝑠 = 1)
+3 4 6 7 8 9 10 12 13 14 15
+2 4 6 8 10 12 14 16 18 20 22 24 26 28 30
+3 5 7 9 11 13 15 17 19 21 23 25 27 29 31
+1 2 5 11
+46
+47
+23
+4 8 12 16 20 24 28 32 36 40 44 48 52 56 60
+2 3 5 6 7 9 10 11 13 14 15 17 18 19 21
+𝑥
+𝑥′
+(𝑠 = 0)
+𝑥′
+(𝑠 = 1)
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
+47 = 101111
+18 = 10010
+Implementace C a D
+▪ Asymmetric binary encoding – Jarosław Duda "Optimal encoding on discrete lattice with
+translational invariant constrains using statistical algorithms“, kap. 3, 2007
+▪ Parametr p odpovídá pravděpodobnosti výskytu symbolu 1
+– pro p=0.5 odpovídá binárnímu kódování s prohozenou 0 a 1
+▪ Příklad:
+KKO - Kódování a komprese dat
+108
+1 31
+0
+33
+1
+35
+1
+37
+1
+39
+1
+41
+1
+43
+1
+45
+1
+48
+1
+51
+1
+54
+1
+57
+1
+60
+1
+64
+1
+68
+1
+72
+1
+def C(x, s):
+if (s == 0):
+return ceil((x+1)/(1-p)) - 1
+else:
+return floor(x/p)
+def D(x):
+s = ceil((x+1)*p) - ceil(x*p)
+if s == 0:
+return x - ceil(x*p), s
+else:
+return ceil(x*p), s
+0111111111111111 01001000
+p=15/16
+Princip streamového zpracování v uABS
+▪ Uvedené implementace produkují jednu velkou hodnotu a nejsou vhodné k reálnému
+použití, nicméně je možné přejít na celočíselnou N-bitovou aritmetiku a operaci dělení
+nahradit posuvem.
+▪ Princip:
+– Pravděpodobnost 𝑝 škálujeme do intervalu q ∈ [1,𝑄 − 1], hodnotu stavu do intervalu x ∈ 𝑄, 2𝑄 − 1 ,
+kde 𝑄 = 2
+𝑁 odpovídá počtu hodnot stavu.
+– Hodnota x udržována v intervalu zápisem LSB bitů x před zakódováním, a načtením do x po dekódování.
+▪ Algoritmus:
+KKO - Kódování a komprese dat
+109
+x = Q
+while not eof do
+read s
+while encode(x,q,s) >= 2*Q do
+write bit x mod 2
+x = floor(x/2)
+x = encode(x,q,s)
+x = read N bits
+while not done:
+w,d := decode(x,q)
+write d
+while w < Q do
+read bit b
+w := w*2 + b
+x := w
+Princip uABS
+▪ Celočíselná implementace operací encode a decode
+– Q je mocnina 2 => dělení nahrazeno bitovým posuvem
+KKO - Kódování a komprese dat
+110
+def encode(x, q, s):
+if (s == 0):
+return ((x+1)*Q - 1)/(Q - q)-1
+return (x*Q)/q
+def decode(x, q):
+s = floor(((x+1)*q - 1)/Q) –
+floor((x*q-1)/Q)
+xq = floor((x*q - 1)/Q) + 1
+if s == 0:
+return x – xq, s
+return xq, s
+Varianta rANS (range ANS)
+▪ Využívá aritmetické výrazy podobně jako uABS, ale vhodné pro velké abecedy
+▪ Princip
+– Množina přirozených čísel se rozdělí na intervaly o velikosti 2
+𝑛 prvků
+– Každý interval je rozdělen na podintervaly, jejichž velikost je proporcionální k pravd. modelu.
+▪ rANS pracuje nad kvantizovaným pravd. rozdělením (n bitů, typicky 8-12)
+– 𝑝𝑠 ≈ 𝑓[𝑠]/2
+𝑛
+▪ Hodnota stavu 𝑦 ∈ [0,2
+𝑛 − 1] je mapována na symboly následovně:
+– symbol(𝑦) = 𝑠 tak, že platí CDF 𝑠 ≤ 𝑦 < CDF[𝑠 + 1], kde
+– CDF 𝑠 = σ𝑖<𝑠 𝑓[𝑖] = 𝑓 0 + ⋯ + 𝑓[𝑠 − 1] je analogie kumulativní distribuční funkce s tím rozdílem,
+že CDF[0]=0, neboť prvnímu symbolu žádný nepředchází
+▪ Kódovací a dekódovací funkce
+KKO - Kódování a komprese dat
+111
+C(x,s) = (floor(x/f[s]) << n) + (x % f[s]) + CDF[s]
+s = symbol(x & mask)
+D(x) = (f[s] * (x >> n) + (x & mask ) - CDF[s], s)
+mask = 2
+𝑛 − 1
+Varianta rANS – streamová verze
+▪ Abychom se vyhnuli práci s aritmetikou velkých čísel, v praxi se udržuje 𝑥 ∈ [𝐿, 𝑏 · 𝐿 −
+1] pomocí renormalizace – tj. odesíláním nebo přijímáním nejméně významných bitů
+čísla 𝑥 do nebo z bitového proudu (obvykle jsou 𝐿 a 𝑏 mocniny dvojky).
+▪ Ve variantě rANS je 𝑥 běžně 32-bitové číslo.
+– Pro renormalizaci na 16 bitech platí: 𝑥 ∈ [2¹⁶, 2³² − 1]
+– Dekodér doplňuje nejméně významné bity z bitového proudu, když je to potřeba s využitím
+následujícího schematu:
+KKO - Kódování a komprese dat
+112
+if (x < (1 << 16)):
+x = (x << 16) + read16bits()
+Princip tANS
+▪ tANS využívá stejného principu jako předchozí metoda, avšak místo vyčíslování výrazu se
+užívá náhled do předpočítané tabulky
+– Stav je omezený na určitý rozsah (např. 0—1023). Bity stavu se postupně zapisují do výstupu
+(renormalizace).
+– Lze využit pro běžné abecedy (256 symbolů)
+▪ Algoritmus:
+KKO - Kódování a komprese dat
+113
+def encode(input, p, L=1024):
+enctab, nb, start, r =
+prepareEnctab(symbProbs=p, tabLen=L)
+x = L
+for s in input:
+nbits = (x + nb[s]) >> r #0+
+write(x, nbits)
+x = enctab[(x >> nbits) + start[s]]
+write(x – L, r-1)
+𝑛𝑏𝑖𝑡𝑠 ∈ [0, 𝑟 − 1]
+𝑥 ∈ [𝐿, 2𝐿 − 1]
+def decode(input, p, L=1024):
+dectab, r =
+prepareDectab(symbProbs=p, tabLen=L)
+X = read(input, r-1)
+while not eof():
+t = dectab[X]
+write(t.symbol)
+X = t.newX + read(input, t.nbits)
+2 𝑋 ∈ [0, 𝐿 − 1]
+𝑟 = 2𝐿
+𝐿 = 2
+𝑅
+𝑡. 𝑛𝑏𝑖𝑡𝑠 ∈ [0, 𝑟 − 1]
+Princip tANS – ukázka tvorby dekódovací tabulky
+KKO - Kódování a komprese dat
+114
+https://en.wikipedia.org/wiki/Asymmetric_numeral_systems
+Algoritmy tANS
+KKO - Kódování a komprese dat
+115
+Očekávané znalosti
+▪ Princip entropického kódování
+▪ Princip tvorby Tunstallova kódování
+▪ Rozumět principu konstrukce Huffmanova kódování a jeho kanonické verze, významu
+kanonické verze, umět zkonstruovat Huffmanův strom vč. uložení kódové knihy.
+▪ Rozumět principu adaptivního Huffmanova kódování, umět zkonstruovat FGK a V strom
+pro daný vstup (provést krok algoritmu).
+▪ Rozumět principu aritmetického kódování, umět zakódovat a dekódovat vstup pomocí
+základní varianty. Znát výhody oproti Huffmanovu kódování.
+▪ Rozumět základnímu principu kódování s využitím stavu (viz ANS), umět aplikovat na
+binární abecedu (uABS) pokud bude zadána kódovací a dekódovací funkce
+KKO - Kódování a komprese dat
+116
