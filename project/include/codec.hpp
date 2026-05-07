@@ -1,6 +1,6 @@
 /**
  * @file codec.hpp
- * @brief Public interface for the LZKO codec.
+ * @brief Public interface for compression and decompression.
  * @author Martin Pribylina (xpriby19)
  * @date 2026-05-06
  */

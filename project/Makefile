@@ -26,6 +26,21 @@ clean:
 	rm -rf $(OBJ_DIR) $(BIN)
 
 
+doc:
+	cd ../docs && pdflatex -interaction=nonstopmode documentation.tex > /dev/null 2>&1
+	@echo "PDF: docs/documentation.pdf"
+
+zip: doc $(BIN)
+	@ZIP=xpriby19.zip; \
+	rm -f $$ZIP; \
+	zip -j $$ZIP \
+	    $(SRC_DIR)/*.cpp \
+	    include/*.hpp \
+	    Makefile \
+	    ../docs/documentation.pdf; \
+	echo "Created $$ZIP ($$(wc -c < $$ZIP) bytes)"
+
+
 # --- TESTY ---
 
 DATA := $(wildcard data/*.raw)

@@ -1,6 +1,6 @@
 /**
  * @file model.cpp
- * @brief Forward and inverse delta model.
+ * @brief Simple delta model for grayscale data.
  * @author Martin Pribylina (xpriby19)
  * @date 2026-05-06
  */

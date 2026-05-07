@@ -1,6 +1,6 @@
 /**
  * @file scanner.cpp
- * @brief Scan helpers, block splitting, and simple scan-direction heuristic.
+ * @brief Scan helpers and block utilities for image data.
  * @author Martin Pribylina (xpriby19)
  * @date 2026-05-06
  */
