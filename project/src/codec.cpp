@@ -1,6 +1,6 @@
 /**
  * @file codec.cpp
- * @brief Compression and decompression for the LZKO format.
+ * @brief Compression and decompression.
  * @author Martin Pribylina (xpriby19)
  * @date 2026-05-06
  */
@@ -67,8 +67,7 @@ static void unpack_block_meta(const std::vector<uint8_t>& buf, uint32_t n,
     }
 }
 
-static constexpr uint32_t BLOCK_SIZE     = 16;
-static constexpr uint8_t  BLOCK_SIZE_LOG = 4;
+static constexpr uint32_t BLOCK_SIZE = 16;
 
 int compress(std::istream& in, std::ostream& out,
              int width, bool use_model, bool adaptive) {
@@ -83,21 +82,24 @@ int compress(std::istream& in, std::ostream& out,
     }
     uint32_t image_height = static_cast<uint32_t>(pixels.size() / image_width);
 
-    const uint8_t magic[4] = {0x4C, 0x5A, 0x4B, 0x4F};
-    out.write(reinterpret_cast<const char*>(magic), 4);
-    write_u16(out, static_cast<uint16_t>(image_width));
-    write_u16(out, static_cast<uint16_t>(image_height));
-    out.put(static_cast<char>((use_model ? 1u : 0u) | (adaptive ? 2u : 0u)));
-    out.put(static_cast<char>(BLOCK_SIZE_LOG));
-    write_u32(out, static_cast<uint32_t>(pixels.size()));
+    // Build payload first so we know whether raw fallback is needed before writing the header.
+    bool stored_raw = false;
+    std::vector<uint8_t> payload;
 
     if (!adaptive) {
         std::vector<uint8_t> data = scan_horizontal(pixels, image_width, image_height);
         if (use_model) forward_model(data);
-        BitWriter bw(out);
-        lzss_encode(data, bw);
-        bw.flush();
+        std::vector<uint8_t> encoded = lzss_encode_to_buffer(data);
+        if (encoded.size() < data.size()) {
+            payload = std::move(encoded);
+        } else {
+            stored_raw = true;
+            payload = pixels;
+        }
     } else {
+        // Buffer the entire adaptive output so we can compare with raw size.
+        std::ostringstream adaptive_buf(std::ios::binary);
+
         std::vector<Block> blocks = split_into_blocks(pixels, image_width, image_height, BLOCK_SIZE);
 
         for (Block& b : blocks) {
@@ -111,9 +113,9 @@ int compress(std::istream& in, std::ostream& out,
         }
 
         uint32_t num_blocks = static_cast<uint32_t>(blocks.size());
-        write_u32(out, num_blocks);
+        write_u32(adaptive_buf, num_blocks);
         std::vector<uint8_t> meta = pack_block_meta(blocks);
-        out.write(reinterpret_cast<const char*>(meta.data()),
+        adaptive_buf.write(reinterpret_cast<const char*>(meta.data()),
                   static_cast<std::streamsize>(meta.size()));
 
         for (const Block& b : blocks) {
@@ -124,36 +126,54 @@ int compress(std::istream& in, std::ostream& out,
 
             if (b.meta.compressed) {
                 std::vector<uint8_t> encoded = lzss_encode_to_buffer(scanned);
-                write_u32(out, static_cast<uint32_t>(encoded.size()));
-                out.write(reinterpret_cast<const char*>(encoded.data()),
+                write_u32(adaptive_buf, static_cast<uint32_t>(encoded.size()));
+                adaptive_buf.write(reinterpret_cast<const char*>(encoded.data()),
                           static_cast<std::streamsize>(encoded.size()));
             } else {
-                write_u32(out, static_cast<uint32_t>(scanned.size()));
-                out.write(reinterpret_cast<const char*>(scanned.data()),
+                write_u32(adaptive_buf, static_cast<uint32_t>(scanned.size()));
+                adaptive_buf.write(reinterpret_cast<const char*>(scanned.data()),
                           static_cast<std::streamsize>(scanned.size()));
             }
         }
+
+        const std::string s = adaptive_buf.str();
+        if (s.size() < pixels.size()) {
+            payload.assign(s.begin(), s.end());
+        } else {
+            stored_raw = true;
+            payload = pixels;
+        }
     }
+
+    // Write header.
+    write_u16(out, static_cast<uint16_t>(image_width));
+    write_u16(out, static_cast<uint16_t>(image_height));
+    out.put(static_cast<char>((use_model ? 1u : 0u) | (adaptive ? 2u : 0u) | (stored_raw ? 4u : 0u)));
+    write_u32(out, static_cast<uint32_t>(pixels.size()));
+    out.write(reinterpret_cast<const char*>(payload.data()),
+              static_cast<std::streamsize>(payload.size()));
 
     return 0;
 }
 
 int decompress(std::istream& in, std::ostream& out) {
-    uint8_t magic[4];
-    in.read(reinterpret_cast<char*>(magic), 4);
-    if (magic[0] != 0x4C || magic[1] != 0x5A || magic[2] != 0x4B || magic[3] != 0x4F) {
-        std::cerr << "Neplatný formát souboru (chybné magic bytes)\n";
-        return 1;
-    }
-
     uint32_t width         = read_u16(in);
     uint32_t height        = read_u16(in);
     uint8_t  flags         = static_cast<uint8_t>(in.get());
-    uint8_t  block_log     = static_cast<uint8_t>(in.get());
-    uint32_t block_size    = 1u << block_log;
     bool     use_model     = (flags & 1u) != 0;
     bool     adaptive      = (flags & 2u) != 0;
+    bool     stored_raw    = (flags & 4u) != 0;
     uint32_t original_size = read_u32(in);
+
+    if (stored_raw) {
+        // Compression didn't help — payload is the original raw pixels.
+        std::vector<uint8_t> data(original_size);
+        in.read(reinterpret_cast<char*>(data.data()),
+                static_cast<std::streamsize>(original_size));
+        out.write(reinterpret_cast<char*>(data.data()),
+                  static_cast<std::streamsize>(data.size()));
+        return 0;
+    }
 
     if (!adaptive) {
         std::vector<uint8_t> data;
@@ -172,14 +192,14 @@ int decompress(std::istream& in, std::ostream& out) {
         std::vector<uint8_t> scan_dirs, comp_flags;
         unpack_block_meta(meta_buf, num_blocks, scan_dirs, comp_flags);
 
-        uint32_t blocks_x = (width + block_size - 1) / block_size;
+        uint32_t blocks_x = (width + BLOCK_SIZE - 1) / BLOCK_SIZE;
         std::vector<uint8_t> image(width * height, 0);
 
         for (uint32_t idx = 0; idx < num_blocks; ++idx) {
             uint32_t block_row = idx / blocks_x;
             uint32_t block_col = idx % blocks_x;
-            uint32_t bw        = std::min(block_size, width  - block_col * block_size);
-            uint32_t bh        = std::min(block_size, height - block_row * block_size);
+            uint32_t bw        = std::min(BLOCK_SIZE, width  - block_col * BLOCK_SIZE);
+            uint32_t bh        = std::min(BLOCK_SIZE, height - block_row * BLOCK_SIZE);
 
             uint32_t stored_size = read_u32(in);
             std::vector<uint8_t> block_raw(stored_size);
@@ -203,9 +223,9 @@ int decompress(std::istream& in, std::ostream& out) {
                 : unscan_vertical(data, bw, bh);
 
             for (uint32_t row = 0; row < bh; ++row) {
-                uint32_t image_col = block_col * block_size;
+                uint32_t image_col = block_col * BLOCK_SIZE;
                 for (uint32_t col = 0; col < bw; ++col)
-                    image[(block_row * block_size + row) * width + image_col + col] =
+                    image[(block_row * BLOCK_SIZE + row) * width + image_col + col] =
                         row_major[row * bw + col];
             }
         }

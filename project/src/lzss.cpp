@@ -141,7 +141,7 @@ struct HashChains {
     }
 };
 
-void encode_impl(const std::vector<uint8_t>& input, BitWriter& out) {
+void lzss_encode(const std::vector<uint8_t>& input, BitWriter& out) {
     Window     win;
     HashChains chains;
     FlagGroup  group;
@@ -184,15 +184,11 @@ void encode_impl(const std::vector<uint8_t>& input, BitWriter& out) {
     group.flush(out);
 }
 
-void lzss_encode(const std::vector<uint8_t>& input, BitWriter& out) {
-    encode_impl(input, out);
-}
-
 std::vector<uint8_t> lzss_encode_to_buffer(const std::vector<uint8_t>& input) {
     std::ostringstream oss(std::ios::binary);
     {
         BitWriter bw(oss);
-        encode_impl(input, bw);
+        lzss_encode(input, bw);
         bw.flush();
     }
     const std::string& s = oss.str();

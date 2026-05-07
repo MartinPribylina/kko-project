@@ -10,8 +10,8 @@
 #include <cstdlib>
 
 std::vector<uint8_t> scan_horizontal(const std::vector<uint8_t>& pixels,
-                                     uint32_t /*width*/, uint32_t /*height*/) {
-    // Row-major order is the native storage layout — just return a copy.
+                                     uint32_t width, uint32_t height) {
+    // Row-major order is the native storage layout.height
     return pixels;
 }
 
