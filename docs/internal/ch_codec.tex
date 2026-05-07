@@ -1,0 +1,187 @@
+\section{Codec Module}
+\label{sec:codec}
+
+\subsection{Purpose}
+
+\texttt{codec.cpp} is the top-level orchestration layer.
+It owns the LZKO file format, drives all other modules in the correct order, and
+implements both the static and adaptive compression strategies.
+The public interface (\texttt{codec.hpp}) exposes exactly two functions:
+\texttt{compress()} and \texttt{decompress()}.
+
+\subsection{Files}
+
+\begin{itemize}
+  \item \texttt{include/codec.hpp} --- public declarations.
+  \item \texttt{src/codec.cpp} --- file format + all compression/decompression logic
+        (\textasciitilde{}200 lines).
+\end{itemize}
+
+\subsection{Private Constants and Helpers}
+
+\begin{lstlisting}[style=cpp]
+static constexpr uint32_t BLOCK_SIZE     = 16;
+static constexpr uint8_t  BLOCK_SIZE_LOG = 4;   // 2^4 = 16
+\end{lstlisting}
+
+\texttt{BLOCK\_SIZE} is defined here and not in \texttt{scanner.hpp} (see the Improvements
+chapter for a discussion of this choice).
+
+Four little-endian I/O helpers are defined as file-private (\texttt{static}) functions:
+
+\begin{lstlisting}[style=cpp]
+static void     write_u16(std::ostream&, uint16_t);
+static void     write_u32(std::ostream&, uint32_t);
+static uint16_t read_u16(std::istream&);
+static uint32_t read_u32(std::istream&);
+\end{lstlisting}
+
+Little-endian byte order is used throughout because the primary target platform
+(merlin.fit.vutbr.cz, x86-64) is natively little-endian and this matches the
+internal \texttt{uint16\_t}/\texttt{uint32\_t} layout without byte swapping.
+
+\subsubsection{pack\_block\_meta / unpack\_block\_meta}
+
+\begin{lstlisting}[style=cpp]
+static std::vector<uint8_t> pack_block_meta(const std::vector<Block>&);
+static void unpack_block_meta(const std::vector<uint8_t>& buf, uint32_t n,
+                               std::vector<uint8_t>& scan_dirs,
+                               std::vector<uint8_t>& comp_flags);
+\end{lstlisting}
+
+These functions pack two bits per block into a byte array
+(or unpack in the reverse direction).
+Block $i$ occupies bit positions $2i$ (scan\_dir) and $2i+1$ (compressed),
+numbered MSB-first within each byte.
+
+Bit address formulae:
+\begin{itemize}
+  \item Byte index: $\lfloor 2i / 8 \rfloor = \lfloor i / 4 \rfloor$
+  \item Bit position within byte (0 = MSB): $(2i) \bmod 8$
+  \item Mask: \texttt{1u << (7 - bit\_position)}
+\end{itemize}
+
+\subsection{File Format}
+\label{sec:file-format}
+
+\begin{center}
+\begin{tabular}{r r l}
+\toprule
+\textbf{Offset} & \textbf{Size} & \textbf{Field} \\
+\midrule
+0  & 4 B & Magic: \texttt{0x4C 0x5A 0x4B 0x4F} (``LZKO'') \\
+4  & 2 B & \texttt{uint16\_t} width (little-endian) \\
+6  & 2 B & \texttt{uint16\_t} height (little-endian) \\
+8  & 1 B & Flags: bit~0 = \texttt{use\_model}, bit~1 = \texttt{adaptive} \\
+9  & 1 B & \texttt{block\_size\_log2} (= 4) \\
+10 & 4 B & \texttt{uint32\_t} original pixel count \\
+14 & \ldots & Static: LZSS bit-stream \\
+14 & \ldots & Adaptive: \texttt{uint32\_t num\_blocks} + metadata + per-block data \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Adaptive per-block data:
+\begin{itemize}
+  \item Packed 2-bit metadata: $\lceil 2 \cdot n / 8 \rceil$ bytes, MSB-first.
+  \item Followed by $n$ entries, each: \texttt{uint32\_t stored\_size} $+$
+        \texttt{stored\_size} bytes (LZSS-compressed or raw pixels).
+\end{itemize}
+
+\subsection{compress()}
+\label{sec:codec-compress}
+
+\begin{lstlisting}[style=cpp]
+int compress(std::istream& in, std::ostream& out,
+             int width, bool use_model, bool adaptive);
+\end{lstlisting}
+
+\textbf{Step 1: Load and validate.}
+All bytes from \texttt{in} are read into \texttt{vector\textless uint8\_t\textgreater{} pixels}.
+If \texttt{pixels.size() \% width != 0}, an error is printed and 1 is returned.
+
+\textbf{Step 2: Write header.}
+Magic, width, height, flags byte (\texttt{use\_model | (adaptive << 1)}),
+\texttt{BLOCK\_SIZE\_LOG}, and \texttt{pixels.size()} are written.
+
+\textbf{Step 3a: Static path} (\texttt{adaptive == false}):
+\begin{enumerate}
+  \item \texttt{scan\_horizontal(pixels, w, h)} $\to$ \texttt{data} (trivial copy).
+  \item If \texttt{use\_model}: \texttt{forward\_model(data)}.
+  \item \texttt{lzss\_encode(data, bw)}; \texttt{bw.flush()}.
+\end{enumerate}
+
+\textbf{Step 3b: Adaptive path} (\texttt{adaptive == true}), two passes:
+
+\emph{Pass 1 --- metadata determination:}
+\begin{enumerate}
+  \item \texttt{split\_into\_blocks(pixels, w, h, BLOCK\_SIZE)} $\to$ \texttt{blocks}.
+  \item For each block:
+    \begin{itemize}
+      \item Choose \texttt{scan\_dir} by comparing
+            \texttt{compute\_sad\_horizontal} vs \texttt{compute\_sad\_vertical}.
+      \item Scan the block pixels accordingly.
+      \item If \texttt{use\_model}: \texttt{forward\_model(scanned)}.
+      \item \texttt{lzss\_encode\_to\_buffer(scanned)} $\to$ \texttt{encoded}.
+      \item \texttt{meta.compressed = (encoded.size() < scanned.size()) ? 1 : 0}.
+    \end{itemize}
+\end{enumerate}
+
+\emph{Write metadata:} \texttt{num\_blocks} + \texttt{pack\_block\_meta(blocks)}.
+
+\emph{Pass 2 --- data output:}
+\begin{enumerate}
+  \item For each block: repeat scan + model. If \texttt{meta.compressed}:
+        \texttt{lzss\_encode\_to\_buffer} $\to$ write size + bytes.
+        Else: write size + raw scanned bytes.
+\end{enumerate}
+
+\textbf{Two-pass rationale:}
+The file format requires all block metadata to precede block data.
+Because the metadata (specifically \texttt{compressed}) depends on the encoded size,
+which is only known after encoding, the codec must encode each block once to determine
+metadata, write all metadata, then encode again to write the data.
+This doubles the LZSS encoding work for adaptive mode.
+See the Improvements chapter for a fix that caches the encoded bytes from Pass 1.
+
+\subsection{decompress()}
+
+\begin{lstlisting}[style=cpp]
+int decompress(std::istream& in, std::ostream& out);
+\end{lstlisting}
+
+\textbf{Step 1: Validate magic.}
+Reads 4 bytes; if they do not match \texttt{0x4C 0x5A 0x4B 0x4F}, prints an error and
+returns 1 immediately.
+
+\textbf{Step 2: Read header.}
+Extracts \texttt{width}, \texttt{height}, \texttt{flags} (from which \texttt{use\_model}
+and \texttt{adaptive} are derived), \texttt{block\_size} ($= 2^{\mathtt{block\_log}}$),
+and \texttt{original\_size}.
+
+\textbf{Step 3a: Static path:}
+\begin{enumerate}
+  \item \texttt{lzss\_decode(BitReader(in), data, original\_size)}.
+  \item If \texttt{use\_model}: \texttt{inverse\_model(data)}.
+  \item Write \texttt{data} to \texttt{out}.
+\end{enumerate}
+
+\textbf{Step 3b: Adaptive path:}
+\begin{enumerate}
+  \item Read \texttt{num\_blocks}, then $\lceil 2 \cdot \mathtt{num\_blocks} / 8 \rceil$ metadata bytes.
+  \item \texttt{unpack\_block\_meta} $\to$ \texttt{scan\_dirs[]}, \texttt{comp\_flags[]}.
+  \item Allocate \texttt{image(width * height)}.
+  \item For each block index \texttt{idx}:
+    \begin{itemize}
+      \item Compute \texttt{block\_row = idx / blocks\_x},
+            \texttt{block\_col = idx \% blocks\_x}, actual \texttt{bw}, \texttt{bh}.
+      \item Read \texttt{stored\_size} + raw bytes into \texttt{block\_raw}.
+      \item If \texttt{comp\_flags[idx]}: wrap in \texttt{istringstream} + \texttt{BitReader}
+            + \texttt{lzss\_decode(brdr, data, bw*bh)}.
+            Else: \texttt{data = block\_raw}.
+      \item If \texttt{use\_model}: \texttt{inverse\_model(data)}.
+      \item \texttt{unscan\_horizontal} or \texttt{unscan\_vertical} based on \texttt{scan\_dirs[idx]}.
+      \item Copy unscanned block pixels into the correct position in \texttt{image}.
+    \end{itemize}
+  \item Write \texttt{image} to \texttt{out}.
+\end{enumerate}

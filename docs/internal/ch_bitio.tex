@@ -1,0 +1,126 @@
+\section{BitIO Module}
+
+\subsection{Purpose}
+
+\texttt{bitio.hpp} provides a pair of thin wrappers around \texttt{std::ostream} and
+\texttt{std::istream} that allow individual bits or groups of bits to be written and read.
+It is the lowest-level primitive in the codebase: all LZSS token emission and decoding
+goes through \texttt{BitWriter} and \texttt{BitReader}.
+
+Without this abstraction, LZSS would need to manage its own bit packing --- mixing algorithm
+logic with serialization detail.
+By delegating that concern to a dedicated class, \texttt{lzss.cpp} can express its logic
+in clean terms (\texttt{write\_bits(offset, 12)}) with no manual shifting.
+
+\subsection{Files}
+
+\texttt{include/bitio.hpp} only.
+Both classes are fully defined in the header (all methods are short and inlineable),
+so no \texttt{.cpp} file is needed.
+This keeps the build simple: any translation unit that includes \texttt{bitio.hpp}
+gets the full implementation at zero link cost.
+
+\subsection{BitWriter}
+
+\texttt{BitWriter} buffers bits until a full byte is available, then emits it to the
+underlying stream.
+
+\begin{lstlisting}[style=cpp]
+class BitWriter {
+public:
+    explicit BitWriter(std::ostream& out);
+    void write_bit(bool b);
+    void write_bits(uint32_t val, int n);  // n LSBs of val, MSB first
+    void flush();
+private:
+    std::ostream& out_;
+    uint8_t buf_;         // accumulation byte (bits fill from MSB down)
+    int bits_in_buf_;     // 0..7: bits currently in buf_
+};
+\end{lstlisting}
+
+\paragraph{State}
+\texttt{buf\_} accumulates bits left-to-right (MSB first).
+\texttt{bits\_in\_buf\_} counts how many bits have been placed in \texttt{buf\_} since
+the last byte was emitted.
+
+\paragraph{write\_bit(b)}
+Shifts \texttt{buf\_} left by one and ORs the new bit into the LSB position, then
+increments \texttt{bits\_in\_buf\_}.
+When the counter reaches 8 the byte is emitted and both fields are reset.
+
+\paragraph{write\_bits(val, n)}
+Iterates from bit \texttt{n-1} down to 0, calling \texttt{write\_bit} for each.
+This writes the \texttt{n} least-significant bits of \texttt{val} with the most-significant
+of those bits first (big-endian bit order within the group).
+
+\paragraph{flush()}
+If any bits remain in \texttt{buf\_} (\texttt{bits\_in\_buf\_} $>$ 0), the partial byte is
+left-shifted to fill the remaining positions with zero bits, then emitted.
+\textbf{The caller must call \texttt{flush()} after the last write.}
+Forgetting this call silently drops the final partial byte.
+
+\paragraph{Example: building byte \texttt{0xB0}}
+Four calls \texttt{write\_bit(1)}, \texttt{write\_bit(0)}, \texttt{write\_bit(1)},
+\texttt{write\_bit(1)} build \texttt{buf\_} to $\mathtt{0b00001011}$ (4 bits, pending).
+A subsequent \texttt{flush()} left-shifts by 4 and emits \texttt{0xB0 = 0b10110000}.
+
+\begin{center}
+\begin{tabular}{r l r}
+\toprule
+\textbf{After call} & \textbf{\texttt{buf\_} (binary)} & \textbf{\texttt{bits\_in\_buf\_}} \\
+\midrule
+write\_bit(1) & \texttt{00000001} & 1 \\
+write\_bit(0) & \texttt{00000010} & 2 \\
+write\_bit(1) & \texttt{00000101} & 3 \\
+write\_bit(1) & \texttt{00001011} & 4 \\
+flush()       & emits \texttt{0xB0} (\texttt{10110000}) & 0 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{BitReader}
+
+\texttt{BitReader} fetches bytes from the stream on demand and returns bits one at a time.
+
+\begin{lstlisting}[style=cpp]
+class BitReader {
+public:
+    explicit BitReader(std::istream& in);
+    bool read_bit();
+    uint32_t read_bits(int n);  // reads n bits MSB-first
+    bool eof() const;
+private:
+    std::istream& in_;
+    uint8_t buf_;      // current byte being consumed
+    int bits_left_;    // how many bits remain in buf_
+};
+\end{lstlisting}
+
+\paragraph{read\_bit()}
+When \texttt{bits\_left\_} reaches 0, the next byte is fetched from the stream into
+\texttt{buf\_} and \texttt{bits\_left\_} is set to 8.
+The most-significant remaining bit is extracted as
+\texttt{(buf\_ >> bits\_left\_) \& 1}, and \texttt{bits\_left\_} is decremented.
+On stream EOF the method returns \texttt{false}.
+
+\paragraph{read\_bits(n)}
+Accumulates \texttt{n} calls to \texttt{read\_bit()} into a \texttt{uint32\_t},
+shifting the accumulator left after each bit.
+This reconstructs the MSB-first value that \texttt{write\_bits} encoded.
+
+\paragraph{eof()}
+Returns \texttt{true} when the underlying stream is exhausted and no bits remain
+in \texttt{buf\_}.
+
+\subsection{Design Notes}
+
+\textbf{No ownership.}
+Both classes hold a \emph{reference} to the stream, not a pointer or \texttt{unique\_ptr}.
+The caller owns and manages the stream's lifetime; BitWriter/Reader are lightweight
+view objects that must not outlive the stream they wrap.
+
+\textbf{Header-only.}
+All methods are short enough that the inline cost is negligible.
+Keeping both classes in a single header avoids an extra translation unit and
+simplifies the build.

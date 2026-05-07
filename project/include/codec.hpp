@@ -1,8 +1,8 @@
 /**
- * @file     codec.hpp
- * @brief    Public interface for the LZSS compress/decompress pipeline.
- * @author   Martin Pribylina (xpriby19)
- * @date     2026-05-06
+ * @file codec.hpp
+ * @brief Public interface for the LZKO codec.
+ * @author Martin Pribylina (xpriby19)
+ * @date 2026-05-06
  */
 
 #pragma once
@@ -12,8 +12,8 @@
 
 /**
  * Compress a RAW grayscale image.
- * @param in         Open binary input stream (RAW pixel data).
- * @param out        Open binary output stream (LZKO file).
+ * @param in         Open binary input stream.
+ * @param out        Open binary output stream.
  * @param width      Image width in pixels.
  * @param use_model  Apply delta model before encoding.
  * @param adaptive   Use per-block adaptive scan direction.
@@ -24,8 +24,8 @@ int compress(std::istream& in, std::ostream& out,
 
 /**
  * Decompress an LZKO file.
- * @param in   Open binary input stream (LZKO file).
- * @param out  Open binary output stream (RAW pixel data).
+ * @param in   Open binary input stream.
+ * @param out  Open binary output stream.
  * @return 0 on success, non-zero on error.
  */
 int decompress(std::istream& in, std::ostream& out);

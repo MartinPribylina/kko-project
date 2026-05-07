@@ -1,17 +1,13 @@
 /**
- * @file     scanner.cpp
- * @brief    Implementation of image scan, block splitting, and SAD heuristic.
- * @author   Martin Pribylina (xpriby19)
- * @date     2026-05-06
+ * @file scanner.cpp
+ * @brief Scan helpers, block splitting, and simple scan-direction heuristic.
+ * @author Martin Pribylina (xpriby19)
+ * @date 2026-05-06
  */
 
 #include "scanner.hpp"
 #include <algorithm>
 #include <cstdlib>
-
-/* -------------------------------------------------------------------------
- * Full-image scan helpers
- * ---------------------------------------------------------------------- */
 
 std::vector<uint8_t> scan_horizontal(const std::vector<uint8_t>& pixels,
                                      uint32_t /*width*/, uint32_t /*height*/) {
@@ -34,13 +30,11 @@ std::vector<uint8_t> scan_vertical(const std::vector<uint8_t>& pixels,
 
 std::vector<uint8_t> unscan_horizontal(const std::vector<uint8_t>& data,
                                        uint32_t /*width*/, uint32_t /*height*/) {
-    // Horizontal scan is the identity — just copy back.
     return data;
 }
 
 std::vector<uint8_t> unscan_vertical(const std::vector<uint8_t>& data,
                                      uint32_t width, uint32_t height) {
-    // data[col * height + row] → result[row * width + col]
     std::vector<uint8_t> result(width * height, 0);
     for (uint32_t col = 0; col < width; ++col) {
         for (uint32_t row = 0; row < height; ++row) {
@@ -49,10 +43,6 @@ std::vector<uint8_t> unscan_vertical(const std::vector<uint8_t>& data,
     }
     return result;
 }
-
-/* -------------------------------------------------------------------------
- * Block splitting and merging
- * ---------------------------------------------------------------------- */
 
 std::vector<Block> split_into_blocks(const std::vector<uint8_t>& pixels,
                                      uint32_t width, uint32_t height,
@@ -68,12 +58,10 @@ std::vector<Block> split_into_blocks(const std::vector<uint8_t>& pixels,
             Block b;
             b.block_row = br;
             b.block_col = bc;
-            // Actual dimensions (clamped at image boundary).
             b.width  = std::min(block_size, width  - bc * block_size);
             b.height = std::min(block_size, height - br * block_size);
-            b.meta   = {0, 1};  // default: horizontal scan, compressed
+            b.meta   = {0, 1};
 
-            // Extract block pixels in row-major order.
             b.pixels.reserve(b.width * b.height);
             for (uint32_t row = 0; row < b.height; ++row) {
                 uint32_t img_row = br * block_size + row;
@@ -94,16 +82,13 @@ std::vector<uint8_t> merge_blocks(const std::vector<Block>& blocks,
     std::vector<uint8_t> result(width * height, 0);
 
     for (const Block& b : blocks) {
-        // Block.pixels may be in scan_dir order.  Convert to row-major first.
         std::vector<uint8_t> row_major;
         if (b.meta.scan_dir == 0) {
-            row_major = b.pixels;  // already row-major
+            row_major = b.pixels;
         } else {
-            // Column-major → row-major via unscan_vertical.
             row_major = unscan_vertical(b.pixels, b.width, b.height);
         }
 
-        // Copy row-major block pixels back into the full image.
         for (uint32_t row = 0; row < b.height; ++row) {
             uint32_t img_row = b.block_row * block_size + row;
             uint32_t img_col_start = b.block_col * block_size;
@@ -115,14 +100,9 @@ std::vector<uint8_t> merge_blocks(const std::vector<Block>& blocks,
     return result;
 }
 
-/* -------------------------------------------------------------------------
- * SAD heuristics
- * ---------------------------------------------------------------------- */
-
 uint32_t compute_sad_horizontal(const std::vector<uint8_t>& block_pixels,
                                 uint32_t bw, uint32_t bh) {
     uint32_t sad = 0;
-    // Sum absolute differences between horizontally adjacent pixels.
     for (uint32_t row = 0; row < bh; ++row) {
         for (uint32_t col = 1; col < bw; ++col) {
             int diff = static_cast<int>(block_pixels[row * bw + col])
@@ -136,7 +116,6 @@ uint32_t compute_sad_horizontal(const std::vector<uint8_t>& block_pixels,
 uint32_t compute_sad_vertical(const std::vector<uint8_t>& block_pixels,
                               uint32_t bw, uint32_t bh) {
     uint32_t sad = 0;
-    // Sum absolute differences between vertically adjacent pixels.
     for (uint32_t row = 1; row < bh; ++row) {
         for (uint32_t col = 0; col < bw; ++col) {
             int diff = static_cast<int>(block_pixels[row * bw + col])
@@ -151,6 +130,5 @@ uint8_t select_scan_dir(const std::vector<uint8_t>& block_pixels,
                         uint32_t bw, uint32_t bh) {
     uint32_t sad_h = compute_sad_horizontal(block_pixels, bw, bh);
     uint32_t sad_v = compute_sad_vertical(block_pixels, bw, bh);
-    // Lower SAD means smoother transitions → better compression.
     return (sad_h <= sad_v) ? 0u : 1u;
 }

@@ -1,0 +1,59 @@
+\section{Entry Point (main.cpp)}
+
+\subsection{Purpose}
+
+\texttt{src/main.cpp} is a minimal entry point.
+It contains no business logic: it delegates argument parsing to the \texttt{args} module
+and all compression/decompression work to the \texttt{codec} module.
+Keeping it thin means the codec is independently testable --- it only requires
+\texttt{std::istream} and \texttt{std::ostream} references, not real files.
+
+\subsection{Implementation}
+
+The function performs exactly four logical steps:
+
+\begin{enumerate}
+  \item \textbf{Parse arguments:}
+        \texttt{ParsedArgs args = parse\_arguments(argc, argv)}.
+        On invalid arguments, \texttt{parse\_arguments} prints a usage message and exits;
+        \texttt{main} never sees an invalid \texttt{ParsedArgs}.
+
+  \item \textbf{Open streams:}
+        \texttt{std::ifstream in(args.infile, std::ios::binary)} and
+        \texttt{std::ofstream out(args.outfile, std::ios::binary)}.
+        Both are checked immediately; if either fails, an error is printed to
+        \texttt{std::cerr} and \texttt{main} returns 1.
+
+  \item \textbf{Dispatch:}
+        \texttt{args.decompress}
+        $\to$ \texttt{decompress(in, out)}
+        or \texttt{compress(in, out, args.width, args.use\_model, args.adaptive\_scan)}.
+
+  \item \textbf{Return:} the exit code from the called function (0 = success, 1 = error).
+\end{enumerate}
+
+\subsection{DEBUG Macro}
+
+When compiled with \texttt{-DDEBUG}, \texttt{main.cpp} prints mode, input/output paths,
+image width, and the model/scan flags to \texttt{std::cout} before dispatching.
+This output is conditionally compiled:
+
+\begin{lstlisting}[style=cpp]
+#ifdef DEBUG
+    std::cout << "Mode: " << (args.decompress ? "decompress" : "compress") << "\n";
+    // ...
+#endif
+\end{lstlisting}
+
+No debug output is produced in release builds.
+The \texttt{Makefile} does not define \texttt{DEBUG} by default.
+
+\subsection{Error Messages: Czech vs English}
+
+Several error strings in \texttt{main.cpp} and \texttt{codec.cpp} are currently in Czech
+(e.g., \textit{``Nelze otevřít vstupní soubor:''}, \textit{``Neplatný formát souboru''}).
+The assignment requires English \emph{comments} in source files; error messages to
+\texttt{stderr} are not comments and are therefore technically not in scope of that rule.
+However, mixing Czech runtime output with an otherwise English-commented codebase is
+inconsistent.
+See the Improvements chapter for the recommended fix.

@@ -1,0 +1,198 @@
+\section{LZSS Encoder/Decoder}
+
+\subsection{Purpose}
+
+LZSS is the core compression algorithm.
+It scans a 1-D byte stream and replaces repeated sequences with compact
+back-references into a sliding history window, emitting only the tokens and flag
+bits needed by the decoder to reconstruct the original stream.
+
+All other modules (scanner, model) are pre-processors that rearrange or transform
+the data to increase the regularity that LZSS then exploits.
+
+\subsection{Files}
+
+\begin{itemize}
+  \item \texttt{include/lzss.hpp} --- constants and public API declarations.
+  \item \texttt{src/lzss.cpp} --- private data structures and implementations
+        (\textasciitilde{}230 lines).
+\end{itemize}
+
+\subsection{Constants}
+
+\begin{center}
+\begin{tabular}{>{\ttfamily}l r l}
+\toprule
+\textbf{Constant} & \textbf{Value} & \textbf{Rationale} \\
+\midrule
+LZSS\_WINDOW\_SIZE & 4096 & 12-bit offset; one row of a 256-wide image = 256 B, 16 rows fit \\
+LZSS\_LOOKAHEAD    & 32   & 5-bit length field (values 0..31 = actual lengths 3..34 bytes) \\
+LZSS\_MIN\_MATCH   & 3    & Match token costs 18 bits; 3 literals cost 27 bits --- net saving at 3 \\
+LZSS\_OFFSET\_BITS & 12   & Token: 12 bits for the window offset \\
+LZSS\_LENGTH\_BITS & 5    & Token: 5 bits for adjusted length (length $-$ MIN\_MATCH) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{MIN\_MATCH derivation:}
+A match token costs $1 + 12 + 5 = 18$ bits.
+Three literals each cost $1 + 8 = 9$ bits, totalling 27 bits.
+A match of length 3 therefore saves 9 bits.
+A match of length 2 would cost the same as 2 literals (18 bits vs $2 \times 9 = 18$ bits)
+--- no saving --- so 3 is the minimum meaningful match length.
+
+\subsection{Internal Data Structures}
+
+\subsubsection{Window}
+
+\begin{lstlisting}[style=cpp]
+struct Window {
+    uint8_t  buf[LZSS_WINDOW_SIZE] = {};
+    uint32_t pos = 0;
+
+    void push(uint8_t byte) {
+        buf[pos] = byte;
+        pos = (pos + 1) % LZSS_WINDOW_SIZE;
+    }
+};
+\end{lstlisting}
+
+A circular byte buffer of 4096 bytes representing the sliding history.
+\texttt{pos} always points to the slot that will receive the \emph{next} byte.
+Both encoder and decoder maintain an identical \texttt{Window} instance so that
+the decoder can reconstruct matches from its own copy of history without any
+explicit dictionary transmission.
+
+\subsubsection{FlagGroup}
+
+\begin{lstlisting}[style=cpp]
+struct FlagGroup {
+    static constexpr int GROUP = 8;
+    uint8_t  flags[8];
+    uint32_t offsets[8];   // match: window offset
+    uint32_t lengths[8];   // match: length - LZSS_MIN_MATCH (0-based)
+    uint8_t  literals[8];  // literal byte
+    int count = 0;         // tokens accumulated (0..8)
+
+    void add_literal(uint8_t byte);
+    void add_match(uint32_t offset, uint32_t length);
+    bool full() const;
+    void flush(BitWriter& out);
+};
+\end{lstlisting}
+
+Collects up to 8 tokens before emitting them as a group.
+When \texttt{flush()} is called:
+\begin{enumerate}
+  \item One \emph{flag byte} is emitted, with each bit (MSB first) indicating whether
+        the corresponding token is a match (1) or a literal (0).
+        If the group is partial (fewer than 8 tokens), the remaining bits are padded with 0.
+  \item Each token's payload is emitted in order:
+        literal $\to$ 8 bits; match $\to$ 12-bit offset + 5-bit adjusted length.
+\end{enumerate}
+
+The length stored in the token is \texttt{length} $-$ \texttt{LZSS\_MIN\_MATCH},
+so a 3-byte match stores 0 and a 34-byte match stores 31.
+The decoder adds \texttt{LZSS\_MIN\_MATCH} back during decoding.
+
+\subsubsection{HashChains}
+
+\begin{lstlisting}[style=cpp]
+struct HashChains {
+    static constexpr uint32_t HASH_SIZE = 65536;
+    static constexpr uint32_t NIL = LZSS_WINDOW_SIZE;  // sentinel
+
+    uint32_t head[65536];          // head[h] = most-recent window slot with hash h
+    uint32_t prev[LZSS_WINDOW_SIZE]; // prev[slot] = previous slot with same hash
+
+    static uint32_t hash2(uint8_t a, uint8_t b); // (a << 8) | b
+    void insert(uint32_t slot, uint8_t a, uint8_t b);
+    std::pair<uint32_t,uint32_t> find_match(...);
+};
+\end{lstlisting}
+
+A hash-based match finder using linked lists within the sliding window.
+
+\textbf{Hash function:} \texttt{hash2(a, b) = (a << 8) | b} produces a 16-bit key
+from the first two bytes of a candidate position.
+The 65536-bucket hash table maps each 2-byte pair to the most recent window slot
+that starts with those two bytes.
+
+\textbf{insert(slot, a, b):} prepends \texttt{slot} to the chain for hash \texttt{(a,b)}.
+The existing head becomes \texttt{prev[slot]}.
+
+\textbf{find\_match(pattern, len, win):} walks the chain for
+\texttt{hash2(pattern[0], pattern[1])}, comparing up to \texttt{LZSS\_LOOKAHEAD}
+bytes at each candidate position.
+The chain walk is capped at 128 iterations (\texttt{chain\_limit}) to bound worst-case
+encoder cost on pathological inputs.
+
+Matches shorter than \texttt{LZSS\_MIN\_MATCH} are discarded; the function returns
+\texttt{(0, 0)} in that case.
+Otherwise it returns the \texttt{(offset, length)} pair for the longest match found.
+
+\subsection{lzss\_encode()}
+
+\begin{lstlisting}[style=cpp]
+void lzss_encode(const std::vector<uint8_t>& input, BitWriter& out);
+\end{lstlisting}
+
+Delegates to the private \texttt{encode\_impl()} function, which:
+
+\begin{enumerate}
+  \item Initialises \texttt{Window}, \texttt{HashChains}, \texttt{FlagGroup}, position \texttt{pos=0}.
+  \item While \texttt{pos < input.size()}:
+    \begin{enumerate}
+      \item Calls \texttt{HashChains::find\_match(input + pos, lookahead, win)}.
+      \item If length $\geq$ \texttt{MIN\_MATCH}: \texttt{FlagGroup::add\_match}; advance \texttt{pos}
+            by \texttt{length}; push each consumed byte to the window and insert its hash.
+      \item Else: \texttt{FlagGroup::add\_literal(input[pos])}; advance by 1; push and insert.
+      \item If \texttt{FlagGroup::full()}: \texttt{FlagGroup::flush(out)}.
+    \end{enumerate}
+  \item Flush the final (partial) group.
+\end{enumerate}
+
+The caller is responsible for calling \texttt{BitWriter::flush()} after
+\texttt{lzss\_encode()} returns.
+
+\subsection{lzss\_encode\_to\_buffer()}
+
+\begin{lstlisting}[style=cpp]
+std::vector<uint8_t> lzss_encode_to_buffer(const std::vector<uint8_t>& input);
+\end{lstlisting}
+
+Wraps \texttt{encode\_impl} with a \texttt{std::ostringstream} to collect output in memory.
+After encoding, extracts the string into a \texttt{vector\textless uint8\_t\textgreater}.
+Used by \texttt{codec.cpp} in adaptive mode to check compressed size before committing
+to the output file (see Section~\ref{sec:codec-compress}).
+
+\subsection{lzss\_decode()}
+
+\begin{lstlisting}[style=cpp]
+void lzss_decode(BitReader& in, std::vector<uint8_t>& output, size_t expected_size);
+\end{lstlisting}
+
+Reconstructs exactly \texttt{expected\_size} bytes from the compressed bit stream:
+
+\begin{enumerate}
+  \item Initialises \texttt{Window}, clears and reserves \texttt{output}.
+  \item While \texttt{output.size() < expected\_size}:
+    \begin{enumerate}
+      \item Reads one 8-bit flag byte.
+      \item For each bit $i$ from 7 down to 0 (MSB first), while bytes still needed:
+        \begin{itemize}
+          \item Bit = 0 (literal): read 8-bit value; append to \texttt{output}; push to window.
+          \item Bit = 1 (match): read 12-bit offset, 5-bit adjusted length.
+                Actual length = adjusted + \texttt{MIN\_MATCH}.
+                Copy \texttt{length} bytes from the window at distance \texttt{offset},
+                appending each byte to \texttt{output} and pushing it back to the window.
+                The copy handles overlapping matches (where \texttt{length > offset})
+                by clamping \texttt{effective\_k = k \% offset} --- this reproduces the
+                run-length extension behaviour of the encoder.
+        \end{itemize}
+    \end{enumerate}
+\end{enumerate}
+
+The decoder stops as soon as \texttt{output.size() == expected\_size}, even if the
+flag byte's remaining bits have not been consumed.
+A partial flag group at the end of the stream is therefore normal and expected.

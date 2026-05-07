@@ -1,0 +1,58 @@
+\documentclass[a4paper,12pt]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{geometry}
+\geometry{margin=2.5cm}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true, linkcolor=blue, urlcolor=blue}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{parskip}
+\usepackage{array}
+
+\lstdefinestyle{cpp}{
+  language=C++,
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{blue},
+  commentstyle=\color{gray},
+  stringstyle=\color{red!70!black},
+  numbers=left,
+  numberstyle=\tiny,
+  breaklines=true,
+  frame=single
+}
+
+\lstdefinestyle{bash}{
+  language=bash,
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{blue},
+  commentstyle=\color{gray},
+  numbers=none,
+  breaklines=true,
+  frame=single
+}
+
+\title{\textbf{lz\_codec --- Internal Developer Documentation}\\
+       \large KKO 2025/2026}
+\author{Martin Pribylina (xpriby19)}
+\date{May 2026}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+\input{ch_intro}
+\input{ch_architecture}
+\input{ch_args}
+\input{ch_bitio}
+\input{ch_model}
+\input{ch_scanner}
+\input{ch_lzss}
+\input{ch_codec}
+\input{ch_main}
+\input{ch_improvements}
+
+\end{document}

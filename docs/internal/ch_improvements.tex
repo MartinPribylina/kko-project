@@ -1,0 +1,191 @@
+\section{Improvements and Simplification Analysis}
+
+The codebase is lean and well-structured for its scope:
+approximately 800 lines across 8 source files, with clear single-responsibility boundaries.
+No files are unnecessary, and the module dependency graph is acyclic and logical.
+
+The items below are \emph{opportunities}, not defects --- the code is correct and all
+round-trips are lossless.
+Each item is labelled with a category and a priority.
+
+\subsection{Critical / High-Priority Improvements}
+
+\subsubsection{Double Encoding in Adaptive Mode}
+
+\textbf{Category: Performance. Priority: High. Effort: Low.}
+
+In \texttt{compress()} (adaptive path), Pass~1 calls \texttt{lzss\_encode\_to\_buffer()}
+for every block to obtain the compressed size and determine whether to set
+\texttt{meta.compressed = 1}.
+Pass~2 then re-encodes the \emph{same} block for actual output.
+
+For a $512 \times 512$ image divided into $16 \times 16$ blocks, there are 1024 blocks,
+so the encoder runs 2048 times instead of 1024.
+Adaptive mode is therefore roughly twice as slow as necessary.
+
+\textbf{Root cause:} the file format requires all block metadata to precede block data
+(so the decompressor knows the layout before reading any data).
+A naive single-pass encoder cannot write metadata first without knowing sizes upfront.
+
+\textbf{Fix:} in Pass~1, store the encoded bytes --- not just the size --- alongside
+\texttt{meta.compressed}.
+One option is to extend \texttt{Block} with a \texttt{vector\textless uint8\_t\textgreater{} encoded\_data}
+field populated during Pass~1 and consumed (then freed) during Pass~2.
+Another option is a parallel \texttt{vector\textless vector\textless uint8\_t\textgreater\textgreater{}} alongside \texttt{blocks}.
+
+\subsubsection{No Unit Tests}
+
+\textbf{Category: Quality / Maintainability. Priority: High. Effort: Medium.}
+
+There is no unit test infrastructure.
+Round-trip correctness is only verified by \texttt{make test}, which exercises the
+full pipeline on whole image files.
+A bug in \texttt{BitWriter::flush()}, \texttt{lzss\_decode()}, or
+\texttt{inverse\_model()} would surface only as a corrupted output file,
+not as a targeted test failure pointing directly to the broken function.
+
+\textbf{Fix:} add a \texttt{tests/test\_main.cpp} (or similar) that directly invokes:
+\begin{itemize}
+  \item \texttt{BitWriter}/\texttt{BitReader} round-trip for edge cases
+        (empty, 1 bit, non-multiple of 8 bits).
+  \item \texttt{forward\_model} / \texttt{inverse\_model} round-trip on ramp, flat, and random data.
+  \item \texttt{scan\_horizontal}/\texttt{unscan\_horizontal} and
+        \texttt{scan\_vertical}/\texttt{unscan\_vertical} inverses.
+  \item \texttt{lzss\_encode} / \texttt{lzss\_decode} round-trip on all-same, alternating,
+        and random byte sequences.
+\end{itemize}
+No test framework is required; a standalone \texttt{main} with assertions is sufficient.
+
+\subsection{Quality / Correctness Improvements}
+
+\subsubsection{Czech Error Messages}
+
+\textbf{Category: Quality. Priority: Medium. Effort: Low.}
+
+Three user-visible strings use Czech:
+\begin{itemize}
+  \item \texttt{main.cpp}: \textit{``Nelze otevřít vstupní soubor:''} and
+        \textit{``Nelze otevřít výstupní soubor:''}
+  \item \texttt{codec.cpp}: \textit{``Neplatný formát souboru (chybné magic bytes)''} and
+        \textit{``Velikost vstupu \ldots není dělitelná šířkou''}
+\end{itemize}
+
+The assignment requires English \emph{comments}; error messages are not comments.
+However, mixing Czech runtime output with an otherwise English-commented codebase
+is inconsistent and could confuse future readers.
+
+\textbf{Fix:} translate all four strings to English equivalents such as
+\textit{``Cannot open input file:''}, \textit{``Invalid file format (bad magic bytes)''}, etc.
+
+\subsubsection{Width Validation Belongs in Argument Parsing}
+
+\textbf{Category: Correctness / Defensive Programming. Priority: Medium. Effort: Low.}
+
+\texttt{args.width} defaults to $-1$ as a sentinel for ``not provided''.
+When passed as an \texttt{int} to \texttt{compress()}, which immediately converts it
+to \texttt{uint32\_t}, a value of $-1$ becomes $2^{32}-1 = 4{,}294{,}967{,}295$.
+The subsequent check \texttt{pixels.size() \% image\_width != 0} may technically
+avoid a crash but produces a misleading error message about image dimensions.
+
+\textbf{Fix:} validate \texttt{width > 0} inside \texttt{parse\_arguments()} (in compression mode)
+and exit immediately with a clear message such as \textit{``Error: -w must be a positive integer.''}.
+This removes an implicit semantic dependency between \texttt{args.hpp} and \texttt{codec.cpp}
+around the $-1$ sentinel.
+
+\subsection{Minor / Low-Priority Improvements}
+
+\subsubsection{scan\_horizontal Is an Unnecessary Heap Allocation}
+
+\textbf{Category: Performance / Simplification. Priority: Medium. Effort: Low.}
+
+\texttt{scan\_horizontal()} returns a copy of its input unchanged (row-major storage is
+the native layout).
+For a $512 \times 512$ image in static mode this allocates 262\,144 bytes unnecessarily.
+In adaptive mode, every block choosing horizontal scan incurs the same cost.
+
+\textbf{Options:}
+\begin{enumerate}
+  \item Add a branch in \texttt{codec.cpp} to skip the scan call for horizontal direction
+        and operate directly on the source pixels.
+  \item Make \texttt{scan\_horizontal} a no-op that returns the input by move (if the caller
+        passes by value) or provide a separate \texttt{scan\_horizontal\_inplace} that returns
+        a \texttt{const\&}.
+\end{enumerate}
+Option~1 is simpler.
+The API symmetry between \texttt{scan\_horizontal} and \texttt{scan\_vertical} is worth
+keeping for clarity, but the unnecessary copy in the H-path is easy to eliminate.
+
+\subsubsection{lzss\_encode\_to\_buffer and ostringstream Overhead}
+
+\textbf{Category: Performance. Priority: Low. Effort: Medium.}
+
+\texttt{lzss\_encode\_to\_buffer} wraps a \texttt{std::ostringstream} to collect output
+bytes, then copies the internal string buffer into a \texttt{vector\textless uint8\_t\textgreater}.
+This involves two separate heap allocations.
+
+Since each block is at most 256 bytes ($16 \times 16$) and the LZSS-encoded output is
+similarly bounded, the absolute cost is small.
+A \texttt{vector}-backed \texttt{streambuf} would eliminate one allocation, but this
+optimisation is unlikely to be noticeable in practice.
+
+\subsubsection{BLOCK\_SIZE Defined in codec.cpp Only}
+
+\textbf{Category: Simplification / Cohesion. Priority: Low. Effort: Low.}
+
+\texttt{BLOCK\_SIZE = 16} and \texttt{BLOCK\_SIZE\_LOG = 4} are defined as
+\texttt{static constexpr} in \texttt{codec.cpp}, making them invisible to other modules.
+Logically, block size belongs with the block-related types (\texttt{Block},
+\texttt{BlockMeta}) in \texttt{scanner.hpp}.
+
+\textbf{Fix:} move both constants to \texttt{scanner.hpp} so any future component
+that needs to know the block size can find it in the obvious place.
+
+\subsection{What Should Not Be Changed}
+
+The following aspects of the current design are correct and should be preserved:
+
+\begin{itemize}
+  \item \textbf{7-file module structure.}
+        \texttt{args}, \texttt{bitio}, \texttt{lzss}, \texttt{model}, \texttt{scanner},
+        \texttt{codec}, \texttt{main} each have a single clear responsibility.
+        Do not collapse \texttt{scanner} and \texttt{model} into \texttt{codec} ---
+        the separation aids readability and testability.
+
+  \item \textbf{LZSS sliding-window algorithm.}
+        LZSS is the right algorithm for this problem: it exploits spatial correlation
+        in images, requires no stored dictionary, and has a trivially simple decoder.
+        There is no reason to switch to LZ78/LZW or a statistical method.
+
+  \item \textbf{Flag-group encoding (8 tokens per flag byte).}
+        The current byte-aligned flag packing is a standard LZSS practice.
+        It keeps output byte-aligned and is easy to decode with a simple bitmask loop.
+
+  \item \textbf{argparse.hpp inclusion.}
+        The third-party argument parsing library is not a compression library and
+        does not violate the assignment constraint.
+        Replacing it with manual \texttt{getopt} parsing would save a few hundred
+        lines of header but add maintenance burden with no benefit.
+
+  \item \textbf{Header-only BitIO.}
+        \texttt{BitWriter} and \texttt{BitReader} are short enough to be inline.
+        A separate \texttt{bitio.cpp} translation unit would add build complexity
+        for no benefit.
+\end{itemize}
+
+\subsection{Summary Table}
+
+\begin{center}
+\begin{tabular}{r l l l l}
+\toprule
+\textbf{\#} & \textbf{Item} & \textbf{Category} & \textbf{Priority} & \textbf{Effort} \\
+\midrule
+1 & Double encoding in adaptive mode     & Performance            & High   & Low \\
+2 & No unit tests                        & Quality                & High   & Medium \\
+3 & Czech error messages                 & Quality                & Medium & Low \\
+4 & Width validation in argument parser  & Correctness            & Medium & Low \\
+5 & scan\_horizontal unnecessary copy   & Performance            & Medium & Low \\
+6 & ostringstream in encode\_to\_buffer  & Performance            & Low    & Medium \\
+7 & BLOCK\_SIZE defined in codec.cpp     & Simplification         & Low    & Low \\
+\bottomrule
+\end{tabular}
+\end{center}

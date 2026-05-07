@@ -1,0 +1,89 @@
+\section{CLI Arguments Module}
+
+\subsection{Purpose}
+
+The args module is the single point of CLI parsing.
+It decouples \texttt{main.cpp} from raw \texttt{argc}/\texttt{argv} handling and makes the
+parsed configuration available to the rest of the program through a plain data struct.
+All validation that can be done at the CLI level (e.g., checking that required flags are
+present) happens here, so the codec functions can assume a coherent input.
+
+\subsection{Files}
+
+\begin{itemize}
+  \item \texttt{include/args.hpp} --- \texttt{ParsedArgs} struct and \texttt{parse\_arguments}
+        declaration.
+  \item \texttt{src/args.cpp} --- implementation using \texttt{argparse.hpp}.
+  \item \texttt{include/argparse.hpp} --- third-party header-only argument parsing library
+        (bundled in-tree; see Section~\ref{sec:argparse}).
+\end{itemize}
+
+\subsection{ParsedArgs Struct}
+
+\begin{lstlisting}[style=cpp]
+struct ParsedArgs {
+    bool        decompress    = false;
+    std::string infile;
+    std::string outfile;
+
+    // Compression-only parameters.
+    // During decompression these are IGNORED -- loaded from the file header.
+    bool use_model    = false;
+    bool adaptive_scan = false;
+    int  width        = -1;
+};
+\end{lstlisting}
+
+Field documentation:
+
+\begin{center}
+\begin{tabular}{>{\ttfamily}l l}
+\toprule
+\textbf{Field} & \textbf{Meaning} \\
+\midrule
+decompress     & \texttt{true} when \texttt{-d} flag is present; \texttt{false} for \texttt{-c} \\
+infile         & Path to input file (from \texttt{-i}) \\
+outfile        & Path to output file (from \texttt{-o}) \\
+use\_model     & \texttt{true} when \texttt{-m} is present (compression only) \\
+adaptive\_scan & \texttt{true} when \texttt{-a} is present (compression only) \\
+width          & Image width in pixels from \texttt{-w}; default \texttt{-1} (invalid sentinel) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Important:} \texttt{use\_model}, \texttt{adaptive\_scan}, and \texttt{width} are only
+meaningful during compression.
+During decompression the codec ignores them entirely and reads the equivalent information
+from the compressed file header (flags byte and width/height fields).
+This design ensures the decompressor is self-contained.
+
+\subsection{parse\_arguments()}
+
+\texttt{ParsedArgs parse\_arguments(int argc, char** argv)} is the only exported function.
+It performs the following steps:
+
+\begin{enumerate}
+  \item Registers all flags and options with \texttt{argparse.hpp}.
+  \item Calls the library's \texttt{parse} method against \texttt{argc}/\texttt{argv}.
+  \item Extracts values into a \texttt{ParsedArgs} instance.
+  \item Validates mode consistency:
+    \begin{itemize}
+      \item Exactly one of \texttt{-c} or \texttt{-d} must be present.
+      \item \texttt{-i} and \texttt{-o} are required in both modes.
+      \item In compression mode (\texttt{-c}), \texttt{-w} must be provided and positive.
+    \end{itemize}
+  \item On any validation failure: prints a usage message to \texttt{stderr} and calls
+        \texttt{exit(1)}.
+\end{enumerate}
+
+\subsection{argparse.hpp}
+\label{sec:argparse}
+
+\texttt{argparse.hpp} is a third-party header-only C++ argument parsing library bundled
+directly in \texttt{include/}.
+It handles option registration, type conversion, and help text generation.
+
+It is \textbf{not} a compression library and does not violate the assignment's ``no external
+compression libraries'' constraint.
+Using it avoids reimplementing \texttt{getopt}-style parsing and reduces
+\texttt{args.cpp} to \textasciitilde{}30 lines of straightforward setup code.

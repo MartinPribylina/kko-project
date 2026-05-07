@@ -1,0 +1,64 @@
+\section{Introduction}
+
+\subsection{Project Overview}
+
+\texttt{lz\_codec} is a command-line lossless compressor for raw 8-bit grayscale images,
+implemented in C++17 and built with GNU Make.
+It was written by Martin Pribylina (xpriby19) as a course project for KKO 2025/2026
+at FIT VUT Brno.
+
+The tool compresses and decompresses files using the LZSS sliding-window dictionary algorithm,
+optionally combined with a first-order pixel difference model and per-block adaptive scan
+direction selection.
+All information needed for decompression is stored inside the compressed file; no flags
+need to be passed to the decompressor beyond the input and output file paths.
+
+\subsection{Assignment Constraints}
+
+The binary must support the following CLI flags:
+
+\begin{center}
+\begin{tabular}{>{\ttfamily}l l}
+\toprule
+\textbf{Flag} & \textbf{Meaning} \\
+\midrule
+-c          & Compress mode \\
+-d          & Decompress mode \\
+-i \textit{file} & Input file path \\
+-o \textit{file} & Output file path \\
+-w \textit{N}    & Image width in pixels (required for compression) \\
+-m          & Enable pixel difference model (compression only) \\
+-a          & Enable adaptive 16$\times$16 block scanning (compression only) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Key constraints from the assignment:
+\begin{itemize}
+  \item \textbf{Self-contained format}: all decompression parameters (\texttt{-m}, \texttt{-a}, \texttt{-w}) are stored
+        in the compressed file header. The decompressor never needs these flags.
+  \item \textbf{No external compression libraries}: the LZSS encoder/decoder is implemented from scratch.
+  \item \textbf{C++17}: compiled with GCC on \texttt{merlin.fit.vutbr.cz} (x86-64 Linux).
+  \item \textbf{Portable integers}: \texttt{uint8\_t}, \texttt{uint16\_t}, \texttt{uint32\_t} used throughout.
+\end{itemize}
+
+\subsection{Supported Compression Modes}
+
+The tool supports four combinations of the two optional pre-processing flags:
+
+\begin{center}
+\begin{tabular}{l l l}
+\toprule
+\textbf{Mode} & \textbf{Scan} & \textbf{Model} \\
+\midrule
+1 (default) & Static horizontal & Off \\
+2           & Static horizontal & Delta model on \\
+3           & Adaptive 16$\times$16 & Off \\
+4           & Adaptive 16$\times$16 & Delta model on \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+In all modes the core LZSS algorithm performs the actual byte-count reduction.
+The scan order and delta model are pre-processing steps that rearrange or transform the
+pixel data to increase the repetition density that LZSS exploits.

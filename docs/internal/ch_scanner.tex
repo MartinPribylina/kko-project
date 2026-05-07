@@ -1,0 +1,167 @@
+\section{Scanner Module}
+
+\subsection{Purpose}
+
+The scanner module converts the 2-D pixel array of a grayscale image into 1-D byte
+streams suitable for LZSS, and performs the inverse operation during decompression.
+It also handles block decomposition for adaptive mode.
+
+The motivation is that LZSS operates on a linear byte sequence.
+The order in which pixels are serialised affects how much local repetition
+(and therefore compressibility) the 1-D stream contains.
+
+\subsection{Files}
+
+\begin{itemize}
+  \item \texttt{include/scanner.hpp} --- struct definitions and function declarations.
+  \item \texttt{src/scanner.cpp} --- implementations (\textasciitilde{}130 lines).
+\end{itemize}
+
+\subsection{Data Structures}
+
+\subsubsection{BlockMeta}
+
+\begin{lstlisting}[style=cpp]
+struct BlockMeta {
+    uint8_t scan_dir;    // 0 = horizontal, 1 = vertical
+    uint8_t compressed;  // 1 = stored as LZSS, 0 = stored raw
+};
+\end{lstlisting}
+
+Two bits of per-block metadata stored in the compressed file.
+\texttt{scan\_dir} tells the decompressor which unscan function to call.
+\texttt{compressed} tells it whether to run \texttt{lzss\_decode} or copy bytes directly.
+
+\subsubsection{Block}
+
+\begin{lstlisting}[style=cpp]
+struct Block {
+    std::vector<uint8_t> pixels;  // row-major within the block
+    uint32_t block_row;           // row index in the image grid (0-based)
+    uint32_t block_col;           // column index in the image grid (0-based)
+    uint32_t width;               // actual block width  (<= block_size at right edge)
+    uint32_t height;              // actual block height (<= block_size at bottom edge)
+    BlockMeta meta;               // set during compression
+};
+\end{lstlisting}
+
+\texttt{pixels} is stored in row-major order within the block (independent of whether
+the block will ultimately be encoded with a horizontal or vertical scan).
+\texttt{block\_row} and \texttt{block\_col} record the block's position in the image
+grid so \texttt{merge\_blocks} can place pixels back in the correct location.
+\texttt{width} and \texttt{height} may be smaller than \texttt{block\_size} for edge
+blocks when the image dimensions are not exact multiples of \texttt{block\_size}.
+
+\subsection{Scan Functions}
+
+\subsubsection{scan\_horizontal / unscan\_horizontal}
+
+\begin{lstlisting}[style=cpp]
+std::vector<uint8_t> scan_horizontal(
+    const std::vector<uint8_t>& pixels, uint32_t width, uint32_t height);
+std::vector<uint8_t> unscan_horizontal(
+    const std::vector<uint8_t>& data,   uint32_t width, uint32_t height);
+\end{lstlisting}
+
+A horizontal scan visits pixels left-to-right, top-to-bottom (row-major order).
+Since \texttt{pixels} is already stored in row-major order, \texttt{scan\_horizontal}
+is a trivial copy of the input.
+\texttt{unscan\_horizontal} is identical.
+The \texttt{width} and \texttt{height} parameters are accepted for API symmetry but
+are unused (annotated \texttt{/{}*width*{}/, /{}*height*{}/} in the source).
+
+\textbf{Note:} This means \texttt{scan\_horizontal} incurs a \texttt{vector\textless uint8\_t\textgreater}
+heap allocation and copy that could be skipped with a minor \texttt{codec.cpp} branch
+(see the Improvements chapter).
+
+\subsubsection{scan\_vertical / unscan\_vertical}
+
+\begin{lstlisting}[style=cpp]
+std::vector<uint8_t> scan_vertical(
+    const std::vector<uint8_t>& pixels, uint32_t width, uint32_t height);
+std::vector<uint8_t> unscan_vertical(
+    const std::vector<uint8_t>& data,   uint32_t width, uint32_t height);
+\end{lstlisting}
+
+A vertical scan visits pixels top-to-bottom, left-to-right (column-major order):
+for each column $c$ from 0 to $\mathtt{width}-1$, emit all rows from top to bottom.
+
+\texttt{scan\_vertical} implementation:
+\begin{lstlisting}[style=cpp]
+for (uint32_t col = 0; col < width; ++col)
+    for (uint32_t row = 0; row < height; ++row)
+        out.push_back(pixels[row * width + col]);
+\end{lstlisting}
+
+\texttt{unscan\_vertical} is the inverse: the input data is column-major, so column
+$c$ occupies positions $[c \cdot \mathtt{height},\; (c+1) \cdot \mathtt{height})$,
+and each element maps back to \texttt{result[row * width + col]}:
+\begin{lstlisting}[style=cpp]
+for (uint32_t col = 0; col < width; ++col)
+    for (uint32_t row = 0; row < height; ++row)
+        result[row * width + col] = data[col * height + row];
+\end{lstlisting}
+
+\subsection{Block Functions}
+
+\subsubsection{split\_into\_blocks}
+
+\begin{lstlisting}[style=cpp]
+std::vector<Block> split_into_blocks(
+    const std::vector<uint8_t>& pixels,
+    uint32_t width, uint32_t height, uint32_t block_size);
+\end{lstlisting}
+
+Divides the image into a grid of \texttt{block\_size}$\times$\texttt{block\_size}
+tiles in raster order (left-to-right, top-to-bottom).
+The total number of blocks is
+$\lceil \mathtt{width} / \mathtt{block\_size} \rceil \times
+ \lceil \mathtt{height} / \mathtt{block\_size} \rceil$.
+
+For each block at grid position $(\mathtt{br}, \mathtt{bc})$:
+\begin{itemize}
+  \item \texttt{width} = $\min(\mathtt{block\_size},\; \mathtt{image\_width} - \mathtt{bc} \cdot \mathtt{block\_size})$
+  \item \texttt{height} = $\min(\mathtt{block\_size},\; \mathtt{image\_height} - \mathtt{br} \cdot \mathtt{block\_size})$
+  \item \texttt{pixels} is extracted row-by-row from the source image.
+  \item Default \texttt{meta} = \texttt{\{scan\_dir=0, compressed=1\}} (assume H-scan and compressed until proven otherwise).
+\end{itemize}
+
+\subsubsection{merge\_blocks}
+
+\begin{lstlisting}[style=cpp]
+std::vector<uint8_t> merge_blocks(
+    const std::vector<Block>& blocks,
+    uint32_t width, uint32_t height, uint32_t block_size);
+\end{lstlisting}
+
+Reconstructs the full image from a vector of blocks.
+Each block already carries \texttt{block\_row} and \texttt{block\_col} coordinates,
+so the function places each pixel at its correct position in the output buffer.
+This is called after all blocks have been decompressed and unscanned.
+
+Note: \texttt{merge\_blocks} is only used by the decompressor in adaptive mode.
+The compressor works directly with the \texttt{Block} structs and does not need
+to reassemble the image.
+
+\subsection{SAD Heuristics}
+
+\begin{lstlisting}[style=cpp]
+uint32_t compute_sad_horizontal(const std::vector<uint8_t>& block, uint32_t w, uint32_t h);
+uint32_t compute_sad_vertical  (const std::vector<uint8_t>& block, uint32_t w, uint32_t h);
+\end{lstlisting}
+
+\textbf{Sum of Absolute Differences (SAD)} measures how smooth a block is in each direction.
+
+\texttt{compute\_sad\_horizontal} sums $|\mathtt{block}[r \cdot w + c] - \mathtt{block}[r \cdot w + c-1]|$
+for all rows $r$ and columns $c > 0$.
+A small horizontal SAD means adjacent pixels in the same row differ little:
+the horizontal scan direction will expose long repeating runs to LZSS.
+
+\texttt{compute\_sad\_vertical} sums $|\mathtt{block}[r \cdot w + c] - \mathtt{block}[(r-1) \cdot w + c]|$
+for all columns $c$ and rows $r > 0$.
+A small vertical SAD means adjacent pixels in the same column differ little.
+
+\textbf{Decision rule} (implemented in \texttt{codec.cpp}):
+choose the direction with the \emph{lower} SAD.
+Lower SAD $\Rightarrow$ smoother transitions in that direction $\Rightarrow$
+more repetition in the resulting 1-D stream $\Rightarrow$ better LZSS compression.

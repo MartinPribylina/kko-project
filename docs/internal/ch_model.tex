@@ -1,0 +1,96 @@
+\section{Delta Model Module}
+
+\subsection{Purpose}
+
+The model module applies a first-order differential (delta) transform to a byte stream
+\emph{before} LZSS encoding, and its exact inverse \emph{after} LZSS decoding.
+
+In a smooth grayscale image, adjacent pixels differ by only a few intensity levels.
+The raw pixel stream therefore contains values distributed across the full 0--255 range.
+After delta coding, the stream consists mostly of small values near zero
+(e.g., $-3, 0, +2, 0, +1, \ldots$), which means many bytes repeat the same small value.
+LZSS finds longer matches in such a stream, producing a higher compression ratio.
+
+The effect is strongest for images with gradual gradients and least effective for
+high-frequency noise images.
+
+\subsection{Files}
+
+\begin{itemize}
+  \item \texttt{include/model.hpp} --- function declarations.
+  \item \texttt{src/model.cpp} --- implementations (\textasciitilde{}20 lines total).
+\end{itemize}
+
+\subsection{forward\_model()}
+
+\begin{lstlisting}[style=cpp]
+void forward_model(std::vector<uint8_t>& data);
+\end{lstlisting}
+
+\textbf{Effect:} transforms \texttt{data} in-place so that
+$\mathtt{data}[i] = \mathtt{data}[i] - \mathtt{data}[i-1]$ (unsigned 8-bit arithmetic)
+for all $i > 0$.
+\texttt{data[0]} is left unchanged (it is the anchor value).
+
+\textbf{Loop direction --- backward:}
+
+\begin{lstlisting}[style=cpp]
+for (size_t i = data.size() - 1; i > 0; --i)
+    data[i] = (uint8_t)(data[i] - data[i - 1]);
+\end{lstlisting}
+
+The loop iterates \emph{from the end toward the start}.
+This is essential: when computing \texttt{data[i]}, we need the \emph{original}
+\texttt{data[i-1]}, not the already-overwritten delta value.
+Iterating backward ensures \texttt{data[i-1]} has not yet been modified.
+
+A forward loop would require a temporary variable to preserve the previous original value.
+The backward loop achieves the same result with no extra storage.
+
+\textbf{Arithmetic:}
+The subtraction uses \texttt{uint8\_t} (unsigned 8-bit) arithmetic.
+Subtraction wraps modulo 256 on all platforms without undefined behaviour.
+Values of the original stream are in 0--255; differences can be anywhere in 0--255
+when interpreted as unsigned (e.g., $3 - 200 = 59$ in unsigned 8-bit arithmetic).
+
+\subsection{inverse\_model()}
+
+\begin{lstlisting}[style=cpp]
+void inverse_model(std::vector<uint8_t>& data);
+\end{lstlisting}
+
+\textbf{Effect:} reconstructs the original values from a delta-coded buffer.
+For all $i > 0$: $\mathtt{data}[i] = \mathtt{data}[i] + \mathtt{data}[i-1]$.
+\texttt{data[0]} is unchanged.
+
+\textbf{Loop direction --- forward:}
+
+\begin{lstlisting}[style=cpp]
+for (size_t i = 1; i < data.size(); ++i)
+    data[i] = (uint8_t)(data[i] + data[i - 1]);
+\end{lstlisting}
+
+Here the loop must iterate \emph{forward}: to reconstruct \texttt{data[i]}, we need
+the already-reconstructed \texttt{data[i-1]} (its original value, now restored).
+Using the reconstructed prefix accumulates the cumulative sum correctly
+(prefix-sum / running total).
+
+\subsection{Round-Trip Guarantee}
+
+$\texttt{inverse\_model}(\texttt{forward\_model}(\mathbf{x})) = \mathbf{x}$
+for all inputs $\mathbf{x}$.
+
+This holds because modular arithmetic satisfies
+$(a - b) + b \equiv a \pmod{256}$.
+No floating-point rounding or overflow is possible.
+
+\subsection{Integration with the Codec}
+
+\texttt{forward\_model} is called inside \texttt{codec.cpp} after scanning (scan gives the
+1-D byte stream) and before LZSS encoding.
+\texttt{inverse\_model} is called after LZSS decoding and before unscanning.
+
+In adaptive mode, the model is applied per-block (each block is scanned independently,
+then modelled independently).
+The first pixel of each block serves as its own anchor; there is no cross-block
+delta dependency.
