@@ -19,66 +19,14 @@ struct Window {
     }
 };
 
-/**
- * Flag-group buffer used during encoding.
- * Collects 8 (is_match, payload_bytes, payload_len) records, then flushes
- * them as: 1 flag-byte + concatenated payloads.
- */
-struct FlagGroup {
-    static constexpr int GROUP  = 8;
-    uint8_t flags[GROUP]  = {};
-    uint32_t offsets[GROUP] = {};
-    uint32_t lengths[GROUP] = {};
-    uint8_t  literals[GROUP] = {};
-    int count = 0;
-
-    void add_literal(uint8_t byte) {
-        flags[count]    = 0;
-        literals[count] = byte;
-        ++count;
-    }
-
-    void add_match(uint32_t offset, uint32_t length) {
-        flags[count]   = 1;
-        offsets[count] = offset;
-        lengths[count] = length - LZSS_MIN_MATCH;
-        ++count;
-    }
-
-    bool full() const { return count == GROUP; }
-
-    void flush(BitWriter& out) {
-        if (count == 0) return;
-        uint8_t flag_byte = 0;
-        for (int i = 0; i < count; ++i) {
-            flag_byte = static_cast<uint8_t>((flag_byte << 1) | flags[i]);
-        }
-        for (int i = count; i < GROUP; ++i) {
-            flag_byte = static_cast<uint8_t>(flag_byte << 1);
-        }
-        out.write_bits(flag_byte, 8);
-
-        // Write payloads in order.
-        for (int i = 0; i < count; ++i) {
-            if (flags[i] == 0) {
-                out.write_bits(literals[i], 8);
-            } else {
-                out.write_bits(offsets[i], LZSS_OFFSET_BITS);
-                out.write_bits(lengths[i], LZSS_LENGTH_BITS);
-            }
-        }
-        count = 0;
-    }
-};
-
-struct HashChains {
+struct SlidingDictionary {
     static constexpr uint32_t HASH_SIZE = 65536;
     static constexpr uint32_t NIL       = LZSS_WINDOW_SIZE;
 
     uint32_t head[HASH_SIZE];
     uint32_t prev[LZSS_WINDOW_SIZE];
 
-    HashChains() {
+    SlidingDictionary() {
         std::fill(head, head + HASH_SIZE, NIL);
         std::fill(prev, prev + LZSS_WINDOW_SIZE, NIL);
     }
@@ -142,9 +90,8 @@ struct HashChains {
 };
 
 void lzss_encode(const std::vector<uint8_t>& input, BitWriter& out) {
-    Window     win;
-    HashChains chains;
-    FlagGroup  group;
+    Window            win;
+    SlidingDictionary dict;
 
     size_t pos = 0;
     const size_t total = input.size();
@@ -153,35 +100,28 @@ void lzss_encode(const std::vector<uint8_t>& input, BitWriter& out) {
         uint32_t remaining = static_cast<uint32_t>(total - pos);
         uint32_t look_len  = std::min(remaining, LZSS_LOOKAHEAD);
 
-        auto [offset, length] = chains.find_match(
-                input.data() + pos, look_len, win);
+        auto [offset, length] = dict.find_match(input.data() + pos, look_len, win);
 
         if (length >= LZSS_MIN_MATCH) {
-            group.add_match(offset, length);
+            out.write_bits(1, 1);
+            out.write_bits(offset, LZSS_OFFSET_BITS);
+            out.write_bits(length - LZSS_MIN_MATCH, LZSS_LENGTH_BITS);
             for (uint32_t k = 0; k < length; ++k) {
                 uint8_t byte = input[pos + k];
-                if (pos + k + 1 < total) {
-                    chains.insert(win.pos, byte, input[pos + k + 1]);
-                }
+                if (pos + k + 1 < total)
+                    dict.insert(win.pos, byte, input[pos + k + 1]);
                 win.push(byte);
             }
             pos += length;
         } else {
-            uint8_t byte = input[pos];
-            group.add_literal(byte);
-            if (pos + 1 < total) {
-                chains.insert(win.pos, byte, input[pos + 1]);
-            }
-            win.push(byte);
+            out.write_bits(0, 1);
+            out.write_bits(input[pos], 8);
+            if (pos + 1 < total)
+                dict.insert(win.pos, input[pos], input[pos + 1]);
+            win.push(input[pos]);
             ++pos;
         }
-
-        if (group.full()) {
-            group.flush(out);
-        }
     }
-
-    group.flush(out);
 }
 
 std::vector<uint8_t> lzss_encode_to_buffer(const std::vector<uint8_t>& input) {
@@ -201,31 +141,22 @@ void lzss_decode(BitReader& in, std::vector<uint8_t>& output, size_t expected_si
 
     Window win;
 
-    static constexpr int GROUP = 8;
-
     while (output.size() < expected_size) {
-        size_t remaining   = expected_size - output.size();
-        int    group_count = static_cast<int>(std::min(remaining, static_cast<size_t>(GROUP)));
+        bool is_match = in.read_bits(1) != 0;
 
-        uint8_t flag_byte = static_cast<uint8_t>(in.read_bits(8));
+        if (!is_match) {
+            uint8_t byte = static_cast<uint8_t>(in.read_bits(8));
+            output.push_back(byte);
+            win.push(byte);
+        } else {
+            uint32_t offset = in.read_bits(LZSS_OFFSET_BITS);
+            uint32_t length = in.read_bits(LZSS_LENGTH_BITS) + LZSS_MIN_MATCH;
 
-        for (int i = 0; i < group_count && output.size() < expected_size; ++i) {
-            bool is_match = (flag_byte >> (7 - i)) & 1u;
-
-            if (!is_match) {
-                uint8_t byte = static_cast<uint8_t>(in.read_bits(8));
+            uint32_t start = (win.pos + LZSS_WINDOW_SIZE - offset) % LZSS_WINDOW_SIZE;
+            for (uint32_t k = 0; k < length && output.size() < expected_size; ++k) {
+                uint8_t byte = win.buf[(start + k) % LZSS_WINDOW_SIZE];
                 output.push_back(byte);
                 win.push(byte);
-            } else {
-                uint32_t offset = in.read_bits(LZSS_OFFSET_BITS);
-                uint32_t length = in.read_bits(LZSS_LENGTH_BITS) + LZSS_MIN_MATCH;
-
-                uint32_t start = (win.pos + LZSS_WINDOW_SIZE - offset) % LZSS_WINDOW_SIZE;
-                for (uint32_t k = 0; k < length && output.size() < expected_size; ++k) {
-                    uint8_t byte = win.buf[(start + k) % LZSS_WINDOW_SIZE];
-                    output.push_back(byte);
-                    win.push(byte);
-                }
             }
         }
     }

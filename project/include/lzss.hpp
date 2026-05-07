@@ -24,10 +24,6 @@ constexpr uint32_t LZSS_OFFSET_BITS = 12;
 
 constexpr uint32_t LZSS_LENGTH_BITS = 5;
 
-/* -------------------------------------------------------------------------
- * Public API
- * ---------------------------------------------------------------------- */
-
 /**
  * Encode a byte buffer with LZSS and write the compressed bit-stream.
  *
@@ -37,7 +33,7 @@ constexpr uint32_t LZSS_LENGTH_BITS = 5;
 void lzss_encode(const std::vector<uint8_t>& input, BitWriter& out);
 
 /**
- * Encode to an in-memory byte buffer (for size comparison in adaptive mode).
+ * Encode to an in-memory byte buffer (for size comparison).
  *
  * @param input  Bytes to compress.
  * @return       Compressed bytes including flag bytes and token payloads.

@@ -1,6 +1,6 @@
 /**
  * @file codec.hpp
- * @brief Public interface for compression and decompression.
+ * @brief Compression and decompression.
  * @author Martin Pribylina (xpriby19)
  * @date 2026-05-06
  */
@@ -23,7 +23,7 @@ int compress(std::istream& in, std::ostream& out,
              int width, bool use_model, bool adaptive);
 
 /**
- * Decompress an LZKO file.
+ * Decompress file.
  * @param in   Open binary input stream.
  * @param out  Open binary output stream.
  * @return 0 on success, non-zero on error.

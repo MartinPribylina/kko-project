@@ -96,7 +96,7 @@ byte sequences and therefore longer LZSS matches.  The inverse transform
 
 \subsection*{File Format}
 
-The compressed file header (9~bytes, little-endian):
+The compressed file header (5~bytes, little-endian):
 
 \begin{center}
 \begin{tabular}{cll}
@@ -106,14 +106,14 @@ Offset & Size & Field \\
 0 & 2\,B & \texttt{uint16\_t} image width \\
 2 & 2\,B & \texttt{uint16\_t} image height \\
 4 & 1\,B & flags: bit\,0 = model used, bit\,1 = adaptive, bit\,2 = raw fallback \\
-5 & 4\,B & \texttt{uint32\_t} original pixel count \\
 \bottomrule
 \end{tabular}
 \end{center}
 
 Bit\,2 of flags (\emph{raw fallback}) is set when compression would produce
 output larger than the input.  In that case the payload is the original raw
-pixels and the output size equals the input size plus the 9-byte header.
+pixels.  The original pixel count is always \texttt{width~$\times$~height}
+and is therefore not stored in the file.
 
 % -----------------------------------------------------------------------
 \section{Key Data Structures}

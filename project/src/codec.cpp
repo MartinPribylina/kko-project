@@ -44,27 +44,30 @@ static uint32_t read_u32(std::istream& in) {
 }
 
 
+// Pack 2 flags bits per block into a byte array (MSB-first).
+// Bit 0 of block.flags -> even bit position; bit 1 -> odd bit position.
 static std::vector<uint8_t> pack_block_meta(const std::vector<Block>& blocks) {
-    uint32_t n    = static_cast<uint32_t>(blocks.size());
+    uint32_t n = static_cast<uint32_t>(blocks.size());
     std::vector<uint8_t> buf((n * 2 + 7) / 8, 0);
     for (uint32_t i = 0; i < n; ++i) {
-        uint32_t bp = i * 2;
-        if (blocks[i].meta.scan_dir)   buf[bp / 8]       |= static_cast<uint8_t>(1u << (7 - bp % 8));
-        if (blocks[i].meta.compressed) buf[(bp+1) / 8]   |= static_cast<uint8_t>(1u << (7 - (bp+1) % 8));
+        uint32_t base = i * 2;
+        if (blocks[i].flags & 1u)        // scan_dir
+            buf[base / 8]       |= static_cast<uint8_t>(0x80u >> (base % 8));
+        if (blocks[i].flags & 2u)        // compressed
+            buf[(base+1) / 8]   |= static_cast<uint8_t>(0x80u >> ((base+1) % 8));
     }
     return buf;
 }
 
-static void unpack_block_meta(const std::vector<uint8_t>& buf, uint32_t n,
-                              std::vector<uint8_t>& scan_dirs,
-                              std::vector<uint8_t>& comp_flags) {
-    scan_dirs.resize(n);
-    comp_flags.resize(n);
+// Unpack flags back into one uint8_t per block (bit 0 = scan_dir, bit 1 = compressed).
+static std::vector<uint8_t> unpack_block_meta(const std::vector<uint8_t>& buf, uint32_t n) {
+    std::vector<uint8_t> flags(n);
     for (uint32_t i = 0; i < n; ++i) {
-        uint32_t bp = i * 2;
-        scan_dirs[i]  = (buf[bp / 8]     >> (7 - bp % 8))     & 1u;
-        comp_flags[i] = (buf[(bp+1) / 8] >> (7 - (bp+1) % 8)) & 1u;
+        uint32_t base = i * 2;
+        flags[i]  = (buf[base / 8]     & (0x80u >> (base % 8)))     ? 1u : 0u;  // bit 0
+        flags[i] |= (buf[(base+1) / 8] & (0x80u >> ((base+1) % 8))) ? 2u : 0u;  // bit 1
     }
+    return flags;
 }
 
 static constexpr uint32_t BLOCK_SIZE = 16;
@@ -87,7 +90,7 @@ int compress(std::istream& in, std::ostream& out,
     std::vector<uint8_t> payload;
 
     if (!adaptive) {
-        std::vector<uint8_t> data = scan_horizontal(pixels, image_width, image_height);
+        std::vector<uint8_t> data = pixels;
         if (use_model) forward_model(data);
         std::vector<uint8_t> encoded = lzss_encode_to_buffer(data);
         if (encoded.size() < data.size()) {
@@ -99,17 +102,36 @@ int compress(std::istream& in, std::ostream& out,
     } else {
         // Buffer the entire adaptive output so we can compare with raw size.
         std::ostringstream adaptive_buf(std::ios::binary);
+        // Buffer the block data output to append after flag bytes.
+        std::ostringstream block_data_buf(std::ios::binary);
 
         std::vector<Block> blocks = split_into_blocks(pixels, image_width, image_height, BLOCK_SIZE);
 
         for (Block& b : blocks) {
-            b.meta.scan_dir = select_scan_dir(b.pixels, b.width, b.height);
-            std::vector<uint8_t> scanned = (b.meta.scan_dir == 0)
-                ? scan_horizontal(b.pixels, b.width, b.height)
-                : scan_vertical(b.pixels, b.width, b.height);
-            if (use_model) forward_model(scanned);
-            std::vector<uint8_t> encoded = lzss_encode_to_buffer(scanned);
-            b.meta.compressed = (encoded.size() < scanned.size()) ? 1u : 0u;
+            // Encode both scan directions and pick the smaller result.
+            std::vector<uint8_t> h_data = b.pixels;
+            if (use_model) forward_model(h_data);
+            std::vector<uint8_t> h_enc = lzss_encode_to_buffer(h_data);
+
+            std::vector<uint8_t> v_data = scan_vertical(b.pixels, BLOCK_SIZE, BLOCK_SIZE);
+            if (use_model) forward_model(v_data);
+            std::vector<uint8_t> v_enc = lzss_encode_to_buffer(v_data);
+
+            bool use_vertical = v_enc.size() < h_enc.size();
+            const std::vector<uint8_t>& best_enc = use_vertical ? v_enc : h_enc;
+
+            if (best_enc.size() < h_data.size()) {
+                b.flags = (use_vertical ? 1u : 0u) | 2u;  // scan_dir | compressed
+                write_u32(block_data_buf, static_cast<uint32_t>(best_enc.size()));
+                block_data_buf.write(reinterpret_cast<const char*>(best_enc.data()),
+                                     static_cast<std::streamsize>(best_enc.size()));
+            } else {
+                // Compression didn't help — store the original pixels as-is.
+                b.flags = 0u;
+                write_u32(block_data_buf, static_cast<uint32_t>(b.pixels.size()));
+                block_data_buf.write(reinterpret_cast<const char*>(b.pixels.data()),
+                                     static_cast<std::streamsize>(b.pixels.size()));
+            }
         }
 
         uint32_t num_blocks = static_cast<uint32_t>(blocks.size());
@@ -118,23 +140,9 @@ int compress(std::istream& in, std::ostream& out,
         adaptive_buf.write(reinterpret_cast<const char*>(meta.data()),
                   static_cast<std::streamsize>(meta.size()));
 
-        for (const Block& b : blocks) {
-            std::vector<uint8_t> scanned = (b.meta.scan_dir == 0)
-                ? scan_horizontal(b.pixels, b.width, b.height)
-                : scan_vertical(b.pixels, b.width, b.height);
-            if (use_model) forward_model(scanned);
-
-            if (b.meta.compressed) {
-                std::vector<uint8_t> encoded = lzss_encode_to_buffer(scanned);
-                write_u32(adaptive_buf, static_cast<uint32_t>(encoded.size()));
-                adaptive_buf.write(reinterpret_cast<const char*>(encoded.data()),
-                          static_cast<std::streamsize>(encoded.size()));
-            } else {
-                write_u32(adaptive_buf, static_cast<uint32_t>(scanned.size()));
-                adaptive_buf.write(reinterpret_cast<const char*>(scanned.data()),
-                          static_cast<std::streamsize>(scanned.size()));
-            }
-        }
+        const std::string block_data = block_data_buf.str();
+        adaptive_buf.write(block_data.data(),
+                static_cast<std::streamsize>(block_data.size()));
 
         const std::string s = adaptive_buf.str();
         if (s.size() < pixels.size()) {
@@ -149,7 +157,6 @@ int compress(std::istream& in, std::ostream& out,
     write_u16(out, static_cast<uint16_t>(image_width));
     write_u16(out, static_cast<uint16_t>(image_height));
     out.put(static_cast<char>((use_model ? 1u : 0u) | (adaptive ? 2u : 0u) | (stored_raw ? 4u : 0u)));
-    write_u32(out, static_cast<uint32_t>(pixels.size()));
     out.write(reinterpret_cast<const char*>(payload.data()),
               static_cast<std::streamsize>(payload.size()));
 
@@ -163,10 +170,10 @@ int decompress(std::istream& in, std::ostream& out) {
     bool     use_model     = (flags & 1u) != 0;
     bool     adaptive      = (flags & 2u) != 0;
     bool     stored_raw    = (flags & 4u) != 0;
-    uint32_t original_size = read_u32(in);
+    uint32_t original_size = width * height;
 
     if (stored_raw) {
-        // Compression didn't help — payload is the original raw pixels.
+        // Payload is the original raw pixels.
         std::vector<uint8_t> data(original_size);
         in.read(reinterpret_cast<char*>(data.data()),
                 static_cast<std::streamsize>(original_size));
@@ -189,8 +196,7 @@ int decompress(std::istream& in, std::ostream& out) {
         in.read(reinterpret_cast<char*>(meta_buf.data()),
                 static_cast<std::streamsize>(meta_bytes_n));
 
-        std::vector<uint8_t> scan_dirs, comp_flags;
-        unpack_block_meta(meta_buf, num_blocks, scan_dirs, comp_flags);
+        std::vector<uint8_t> block_flags = unpack_block_meta(meta_buf, num_blocks);
 
         uint32_t blocks_x = (width + BLOCK_SIZE - 1) / BLOCK_SIZE;
         std::vector<uint8_t> image(width * height, 0);
@@ -198,8 +204,6 @@ int decompress(std::istream& in, std::ostream& out) {
         for (uint32_t idx = 0; idx < num_blocks; ++idx) {
             uint32_t block_row = idx / blocks_x;
             uint32_t block_col = idx % blocks_x;
-            uint32_t bw        = std::min(BLOCK_SIZE, width  - block_col * BLOCK_SIZE);
-            uint32_t bh        = std::min(BLOCK_SIZE, height - block_row * BLOCK_SIZE);
 
             uint32_t stored_size = read_u32(in);
             std::vector<uint8_t> block_raw(stored_size);
@@ -207,26 +211,27 @@ int decompress(std::istream& in, std::ostream& out) {
                     static_cast<std::streamsize>(stored_size));
 
             std::vector<uint8_t> data;
-            if (comp_flags[idx]) {
+            if (block_flags[idx] & 2u) {  // compressed
                 std::string s(block_raw.begin(), block_raw.end());
                 std::istringstream iss(s, std::ios::binary);
                 BitReader brdr(iss);
-                lzss_decode(brdr, data, bw * bh);
+                lzss_decode(brdr, data, BLOCK_SIZE * BLOCK_SIZE);
             } else {
                 data = block_raw;
             }
 
             if (use_model) inverse_model(data);
 
-            std::vector<uint8_t> row_major = (scan_dirs[idx] == 0)
-                ? data
-                : unscan_vertical(data, bw, bh);
+            // Only unscan if the block was compressed (scan dir only applies to compressed blocks).
+            std::vector<uint8_t> row_major = (block_flags[idx] & 2u) && (block_flags[idx] & 1u)
+                ? unscan_vertical(data, BLOCK_SIZE, BLOCK_SIZE)
+                : data;
 
-            for (uint32_t row = 0; row < bh; ++row) {
+            for (uint32_t row = 0; row < BLOCK_SIZE; ++row) {
                 uint32_t image_col = block_col * BLOCK_SIZE;
-                for (uint32_t col = 0; col < bw; ++col)
+                for (uint32_t col = 0; col < BLOCK_SIZE; ++col)
                     image[(block_row * BLOCK_SIZE + row) * width + image_col + col] =
-                        row_major[row * bw + col];
+                        row_major[row * BLOCK_SIZE + col];
             }
         }
 
